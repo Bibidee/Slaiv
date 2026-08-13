@@ -41,4 +41,4 @@ Configure only public deployment values in `.env` based on `.env.example`. GitHu
 
 ## Deployment limitation
 
-N/A — external blocker: this environment has no Python 3.12 GenLayer runtime, funded deployment wallet, configured network/RPC, authoritative slashing endpoint, or deployed contract address. The local GenVM linter completes static checks but cannot load its SDK on the available Python 3.11 interpreter. The repository therefore deliberately remains fail-closed and labels all UI data as fixtures.
+Studionet contract deployment: `0xAe8CF653b9a2138759429440CadF2D7c30F6a048`; deployment transaction `0xfdcb5f4cee86b4721b7248e79bb79baad07e9056ab7161fef6880041313e60bd`. It was deployed with Python 3.12.10 and GenLayer CLI 0.39.2 after `genvm-lint check`, `typecheck`, and `schema` completed. The browser remains in demo mode until a public RPC URL is configured.

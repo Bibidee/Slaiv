@@ -12,3 +12,13 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r requirements-dev.txt
+      - run: genvm-lint check contracts/SlaivClaims.py
+      - run: genvm-lint typecheck contracts/SlaivClaims.py
+      - run: genvm-lint schema contracts/SlaivClaims.py
