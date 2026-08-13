@@ -1,55 +1,44 @@
 # Slaiv
 
-Stake risk, judged in context. Slaiv is a **demo/testnet operations console** for slashing-coverage claims. It is not insurance, does not prevent or reverse native protocol slashing, and never guarantees reimbursement.
+Slaiv is a GenLayer-native, evidence-driven slashing coverage adjudication MVP. Native protocol evidence establishes an event, immutable policy terms establish coverage, GenLayer judges ambiguous evidence, and deterministic code produces a payout instruction.
 
-## What is implemented
+## What it is not
 
-- Operational dark-console UI: Overview, Validators, Monitor, Policies and Claims.
-- Clearly marked demo fixtures—no simulated observation is presented as live protocol data.
-- Validator search and covered-only filter.
-- Claim workflow states and a three-panel claim adjudication surface.
-- Provenance labels and inspection drawer: protocol fact, claimant assertion, GenLayer judgment, and demo fixture are intentionally kept separate.
-- Offline adapter state rather than decorative live logs.
-- Locked-policy manifest and deterministic payout display: `min(eligible_loss * (1 - deductible_bps / 10000), coverage_limit)`.
+Slaiv is not insurance, a promise of reimbursement, a validator slashing mechanism, a generic uptime monitor, or a centralized oracle. The current browser experience is explicitly **DEMO / FIXTURE MODE**: it has no deployed contract, connected wallet, or configured authoritative protocol endpoint.
 
-## Architecture boundary
+## Architecture and boundary
 
-```text
-native protocol evidence -> evidence packet -> GenLayer eligibility verdict
-locked policy terms + eligible loss -> deterministic payout instruction
-```
+See [architecture](docs/ARCHITECTURE.md). The contract’s non-deterministic review must produce structured eligibility and `eligible_loss`; deterministic integer arithmetic then applies `eligible_loss - floor(eligible_loss * deductible_bps / 10000)`, capped by coverage limit. The UI never authoritatively calculates from documented loss.
 
-The browser demo does not make a blockchain call. It is structured around the required `ProtocolAdapter` functions (`getValidatorStatus`, `getValidatorHistory`, `getSlashEvents`, `getFinalityStatus`, and `getDelegationReference`) and shows an honest offline state until an authoritative adapter is connected.
+## Contract API
 
-## Policy shape
+`contracts/SlaivClaims.py` exposes `create_policy`, `submit_claim`, `append_evidence`, `review_slashing_claim`, `record_appeal`, `finalize_claim`, and policy/claim/review/stat getters. It uses GenLayer’s Equivalence Principle boundary for review and does not transfer arbitrary value from free-form text.
 
-```json
-{
-  "policy_id": "pol_001",
-  "holder": "0x...",
-  "validator": "0x...",
-  "coverage_start": "2026-07-01T00:00:00Z",
-  "coverage_end": "2026-10-01T00:00:00Z",
-  "coverage_limit": "500",
-  "covered_events": ["MISSED_EXECUTION_WINDOW"],
-  "exclusions": ["holder-caused event", "non-final slash"],
-  "deductible_bps": 500
-}
-```
+## Provenance and finality
 
-## Run locally
+Records are labelled PROTOCOL FACT, MONITOR OBSERVATION, CLAIMANT ASSERTION, GENLAYER JUDGMENT, or DEMO FIXTURE. Fixture records never masquerade as protocol facts and contain no made-up block, transaction, hash, or retrieval timestamp. Underlying slash finality is distinct from GenLayer transaction finality; pending underlying finality blocks review and payout.
+
+## State machine and appeals
+
+Claims follow explicit states: DRAFT → SUBMITTED → EVIDENCE_PENDING/AWAITING_FINALITY/UNDER_REVIEW → APPROVED/PARTIALLY_APPROVED/DENIED/UNRESOLVED → APPEALED/FINAL. Appeals require the claimant and material new evidence. See [demo guide](docs/DEMO.md).
+
+## Security
+
+See [security boundaries](docs/SECURITY.md). Slaiv validates bounded schemas with Zod, canonicalizes structured input, enforces authorization/duplicate/transition checks in its deterministic reference engine, and uses integer units for payouts.
+
+## Local setup and validation
 
 ```bash
 npm install
+npm run lint
+npm run typecheck
+npm test
+npm run build
 npm run dev
 ```
 
-Production verification:
+Configure only public deployment values in `.env` based on `.env.example`. No CI workflow is included by design.
 
-```bash
-npm run build
-```
+## Deployment limitation
 
-## Required production work
-
-Before live deployment, add a GenLayer `SlaivClaims` intelligent contract, wallet authorization, canonical JSON hashing, Zod schemas, authoritative protocol adapter and finality retrieval, evidence-size/URL controls, contract and integration tests, and a real appeal submission flow. GenLayer review must return eligibility only; a deterministic contract method must calculate and finalize any payout exactly once.
+N/A — external blocker: this environment has no GenLayer SDK/runtime, funded deployment wallet, configured network/RPC, authoritative slashing endpoint, or deployed contract address. The repository therefore deliberately remains fail-closed and labels all UI data as fixtures.

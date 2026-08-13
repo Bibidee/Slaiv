@@ -4,8 +4,17 @@
   "private": true,
   "scripts": {
     "dev": "vite",
+    "lint": "node scripts/lint.mjs",
+    "typecheck": "node scripts/typecheck.mjs",
+    "test": "vitest run",
     "build": "vite build",
     "preview": "vite preview"
   },
-  "devDependencies": { "vite": "latest" }
+  "devDependencies": {
+    "vite": "latest",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
 }
