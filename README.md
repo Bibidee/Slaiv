@@ -41,4 +41,4 @@ Configure only public deployment values in `.env` based on `.env.example`. GitHu
 
 ## Deployment limitation
 
-Studionet contract deployment: `0xAe8CF653b9a2138759429440CadF2D7c30F6a048`; deployment transaction `0xfdcb5f4cee86b4721b7248e79bb79baad07e9056ab7161fef6880041313e60bd`. It was deployed with Python 3.12.10 and GenLayer CLI 0.39.2 after `genvm-lint check`, `typecheck`, and `schema` completed. The browser remains in demo mode until a public RPC URL is configured.
+Studionet contract deployment: `0x6361B95A2AaD2b42CF2299b01123c301Ac6e5A1D`; deployment transaction `0xab035af3f463e7296111a8649fabccca88ee1b7d7a7e474fd597d1d437758d77`. It was deployed with Python 3.12.10 and GenLayer CLI 0.39.2 after `genvm-lint check`, `typecheck`, and `schema` completed. The browser remains in demo mode until a public RPC URL is configured.
