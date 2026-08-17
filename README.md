@@ -1,55 +1,45 @@
 # Slaiv
 
-Stake risk, judged in context. Slaiv is a **demo/testnet operations console** for slashing-coverage claims. It is not insurance, does not prevent or reverse native protocol slashing, and never guarantees reimbursement.
+Slaiv is a GenLayer-native, evidence-driven slashing coverage adjudication MVP. Native protocol evidence establishes an event, immutable policy terms establish coverage, GenLayer judges ambiguous evidence, and deterministic code produces a payout instruction.
 
-## What is implemented
+## What it is not
 
-- Operational dark-console UI: Overview, Validators, Monitor, Policies and Claims.
-- Clearly marked demo fixtures—no simulated observation is presented as live protocol data.
-- Validator search and covered-only filter.
-- Claim workflow states and a three-panel claim adjudication surface.
-- Provenance labels and inspection drawer: protocol fact, claimant assertion, GenLayer judgment, and demo fixture are intentionally kept separate.
-- Offline adapter state rather than decorative live logs.
-- Locked-policy manifest and deterministic payout display: `min(eligible_loss * (1 - deductible_bps / 10000), coverage_limit)`.
+Slaiv is not insurance, a promise of reimbursement, a validator slashing mechanism, a generic uptime monitor, or a centralized oracle. The browser begins in **DEMO / FIXTURE MODE** and enables writes only after it can read the configured contract on the selected network.
 
-## Architecture boundary
+## Architecture and boundary
 
-```text
-native protocol evidence -> evidence packet -> GenLayer eligibility verdict
-locked policy terms + eligible loss -> deterministic payout instruction
-```
+See [architecture](docs/ARCHITECTURE.md). The contract’s non-deterministic review must produce structured eligibility and `eligible_loss`; deterministic integer arithmetic then applies `eligible_loss - floor(eligible_loss * deductible_bps / 10000)`, capped by coverage limit. The UI never authoritatively calculates from documented loss.
 
-The browser demo does not make a blockchain call. It is structured around the required `ProtocolAdapter` functions (`getValidatorStatus`, `getValidatorHistory`, `getSlashEvents`, `getFinalityStatus`, and `getDelegationReference`) and shows an honest offline state until an authoritative adapter is connected.
+## Contract API
 
-## Policy shape
+`contracts/SlaivClaims.py` exposes policy, claim, claimant-evidence, adapter-finality, review, appeal, finalization and read methods. It uses GenLayer’s Equivalence Principle boundary for review and does not transfer arbitrary value from free-form text.
 
-```json
-{
-  "policy_id": "pol_001",
-  "holder": "0x...",
-  "validator": "0x...",
-  "coverage_start": "2026-07-01T00:00:00Z",
-  "coverage_end": "2026-10-01T00:00:00Z",
-  "coverage_limit": "500",
-  "covered_events": ["MISSED_EXECUTION_WINDOW"],
-  "exclusions": ["holder-caused event", "non-final slash"],
-  "deductible_bps": 500
-}
-```
+## Provenance and finality
 
-## Run locally
+Claimants may add only `CLAIMANT_ASSERTION` evidence. Only the narrowly scoped `protocol_authority` adapter role can append a normalized `PROTOCOL_FACT` and move a claim from `AWAITING_FINALITY` to `UNDER_REVIEW`; it cannot adjudicate or set payout. The adapter must independently fetch and retain the referenced authoritative record before sending that transaction. Underlying slash finality is distinct from GenLayer transaction finality; pending underlying finality blocks review and payout. “Commitment” fields are correlation labels, not cryptographic proof claims.
+
+## State machine and appeals
+
+Claims follow explicit states: DRAFT → SUBMITTED → EVIDENCE_PENDING/AWAITING_FINALITY/UNDER_REVIEW → APPROVED/PARTIALLY_APPROVED/DENIED/UNRESOLVED → APPEALED/FINAL. Appeals require the claimant and material new evidence. See [demo guide](docs/DEMO.md).
+
+## Security
+
+See [security boundaries](docs/SECURITY.md). Slaiv validates bounded schemas with Zod, canonicalizes structured input, enforces authorization/duplicate/transition checks in its deterministic reference engine, and uses integer units for payouts.
+
+## Local setup and validation
 
 ```bash
 npm install
+npm run lint
+npm run typecheck
+npm test
+npm run build
+./.venv/Scripts/pytest.exe tests/direct -v
 npm run dev
 ```
 
-Production verification:
+Configure only public deployment values in `.env` based on `.env.example`. The project intentionally has no hosted CI workflow; run the validation commands locally before release.
 
-```bash
-npm run build
-```
+## Deployment limitation
 
-## Required production work
-
-Before live deployment, add a GenLayer `SlaivClaims` intelligent contract, wallet authorization, canonical JSON hashing, Zod schemas, authoritative protocol adapter and finality retrieval, evidence-size/URL controls, contract and integration tests, and a real appeal submission flow. GenLayer review must return eligibility only; a deterministic contract method must calculate and finalize any payout exactly once.
+Current Studionet release deployment: `0x3d19d355EC07b9cCFB5FACc367449A5e3B52DaD7` (transaction `0xd95466efefee7df2b295e71e353f7ea8ee498d34bde19bffb9326786d7596b38`). It was read back successfully after Direct Mode passed on Linux; see [deployment record](docs/DEPLOYMENT.md).

@@ -2,10 +2,25 @@
   "name": "slaiv",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
+    "lint": "eslint src tests",
+    "typecheck": "tsc -p tsconfig.json",
+    "audit:fixtures": "node scripts/lint.mjs",
+    "test": "vitest run",
     "build": "vite build",
     "preview": "vite preview"
   },
-  "devDependencies": { "vite": "latest" }
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "typescript": "^7.0.2",
+    "vite": "latest",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "genlayer-js": "^1.1.8",
+    "zod": "^4.4.3"
+  }
 }
