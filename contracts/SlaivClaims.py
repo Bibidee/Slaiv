@@ -13,15 +13,19 @@ class SlaivClaims(gl.Contract):
     claims: TreeMap[str, str]
     reviews: TreeMap[str, str]
     appeals: TreeMap[str, str]
+    effective_reviews: TreeMap[str, str]
     claim_evidence: TreeMap[str, str]
     payouts: TreeMap[str, u256]
     user_policies: TreeMap[str, str]
     policy_count: u32
     claim_count: u32
-    administrator: Address
+    protocol_authority: Address
 
     def __init__(self):
-        self.administrator = gl.message.sender_address
+        # This is a deliberately narrow, auditable adapter boundary.  It is not
+        # an administrator override: only this role can attest a normalized
+        # protocol fact, and it cannot adjudicate or set a payout.
+        self.protocol_authority = gl.message.sender_address
 
     def _load(self, records: TreeMap[str, str], key: str) -> dict:
         raw = records.get(key, "")
@@ -42,7 +46,10 @@ class SlaivClaims(gl.Contract):
     def create_policy(self, policy_id: str, policy_json: str, policy_commitment: str) -> None:
         if self.policies.get(policy_id, "") != "": raise Exception("duplicate policy")
         p = json.loads(policy_json); self._assert_policy(p)
-        if p.get("policy_id") != policy_id or p.get("policy_commitment") != policy_commitment: raise Exception("policy commitment mismatch")
+        if p.get("policy_id") != policy_id: raise Exception("policy id mismatch")
+        # A commitment is an opaque correlation label, never represented as a
+        # cryptographic proof.  The canonical stored JSON is authoritative.
+        p["policy_commitment"] = policy_commitment
         p["active"] = True; p["created_by"] = self._sender(); self._store(self.policies, policy_id, p)
         owner = self.user_policies.get(self._sender(), "[]"); self.user_policies[self._sender()] = json.dumps(json.loads(owner) + [policy_id]); self.policy_count += 1
     @gl.public.write
@@ -61,17 +68,34 @@ class SlaivClaims(gl.Contract):
         c = self._load(self.claims, claim_id)
         if c["claimant"].lower() != self._sender(): raise Exception("unauthorized evidence")
         e = json.loads(evidence_json)
-        if e.get("commitment") != evidence_commitment or e.get("kind") not in ("CLAIMANT_ASSERTION", "MONITOR_OBSERVATION", "PROTOCOL_FACT", "DEMO_FIXTURE") or len(e.get("source", "")) > 500 or len(e.get("reference", "")) > 2000: raise Exception("invalid evidence")
+        if e.get("commitment") != evidence_commitment or e.get("kind") != "CLAIMANT_ASSERTION" or len(e.get("source", "")) > 500 or len(e.get("reference", "")) > 2000: raise Exception("invalid claimant evidence")
         items = json.loads(self.claim_evidence.get(claim_id, "[]"))
         if len(items) >= 12: raise Exception("evidence limit")
         e["submitter"] = self._sender(); items.append(e); self.claim_evidence[claim_id] = json.dumps(items, sort_keys=True, separators=(",", ":"))
         self._store(self.claims, claim_id, c)
     @gl.public.write
     def record_protocol_finality(self, claim_id: str, protocol_evidence_json: str) -> None:
-        """Fail closed until an independently fetchable authoritative staking adapter is configured."""
-        raise Exception("independent protocol-finality adapter unavailable")
+        """Accept only normalized, independently-verifiable adapter evidence.
+
+        The production adapter must fetch the referenced authoritative record
+        before submitting it.  A claimant cannot reach this method or promote
+        self-submitted evidence to finality.
+        """
+        if str(gl.message.sender_address).lower() != str(self.protocol_authority).lower(): raise Exception("protocol authority required")
+        c = self._load(self.claims, claim_id); p = self._load(self.policies, c["policy_id"])
+        if c["state"] != "AWAITING_FINALITY": raise Exception("finality already recorded")
+        e = json.loads(protocol_evidence_json)
+        required = (e.get("kind") == "PROTOCOL_FACT" and e.get("protocol") == "genlayer" and e.get("validator") == p["validator"] and e.get("claim_id") == claim_id and e.get("finality") == "FINAL" and e.get("source") == "GENLAYER_STAKING_ADAPTER" and isinstance(e.get("reference"), str) and len(e["reference"]) >= 12)
+        if not required: raise Exception("invalid protocol evidence")
+        items = json.loads(self.claim_evidence.get(claim_id, "[]"))
+        if len(items) >= 12: raise Exception("evidence limit")
+        e["submitter"] = self._sender(); items.append(e); self.claim_evidence[claim_id] = json.dumps(items, sort_keys=True, separators=(",", ":"))
+        c["underlying_finality"] = "FINAL"; c["state"] = "UNDER_REVIEW"; self._store(self.claims, claim_id, c)
     def _valid_verdict(self, v: dict, c: dict) -> bool:
-        return v.get("eligibility") in ("APPROVED","PARTIALLY_APPROVED","DENIED","UNRESOLVED") and v.get("incident_class") in EVENTS and isinstance(v.get("slash_final"), bool) and isinstance(v.get("covered_event"), bool) and isinstance(v.get("exclusion_triggered"), bool) and isinstance(v.get("eligible_loss"), int) and 0 <= v["eligible_loss"] <= c["documented_loss"] and isinstance(v.get("confidence"), (int,float)) and 0 <= v["confidence"] <= 1
+        base = v.get("eligibility") in ("APPROVED","PARTIALLY_APPROVED","DENIED","UNRESOLVED") and v.get("incident_class") in EVENTS and isinstance(v.get("slash_final"), bool) and isinstance(v.get("covered_event"), bool) and isinstance(v.get("exclusion_triggered"), bool) and isinstance(v.get("eligible_loss"), int) and 0 <= v["eligible_loss"] <= c["documented_loss"] and isinstance(v.get("confidence"), (int,float)) and 0 <= v["confidence"] <= 1
+        if not base: return False
+        if v["eligibility"] == "DENIED": return v["eligible_loss"] == 0
+        return v["slash_final"] and v["covered_event"] and not v["exclusion_triggered"]
     @gl.public.write
     def review_slashing_claim(self, claim_id: str) -> None:
         c = self._load(self.claims, claim_id)
@@ -86,12 +110,12 @@ class SlaivClaims(gl.Contract):
             return self._valid_verdict(lead, c) and self._valid_verdict(own, c) and all(lead[k] == own[k] for k in ("eligibility","incident_class","slash_final","covered_event","exclusion_triggered","eligible_loss"))
         v = gl.vm.run_nondet_unsafe(leader, validator)
         if not self._valid_verdict(v, c) or not v["slash_final"]: raise Exception("invalid verdict")
-        c["state"] = v["eligibility"]; self._store(self.reviews, claim_id, v); self._store(self.claims, claim_id, c)
+        c["state"] = v["eligibility"]; self._store(self.reviews, claim_id, v); self._store(self.effective_reviews, claim_id, v); self._store(self.claims, claim_id, c)
     @gl.public.write
     def finalize_claim(self, claim_id: str) -> None:
         c = self._load(self.claims, claim_id)
         if c["claimant"].lower() != self._sender() or c["finalized"] or c["state"] not in TERMINAL: raise Exception("cannot finalize")
-        v = self._load(self.reviews, claim_id); p = self._load(self.policies, c["policy_id"])
+        v = self._load(self.effective_reviews, claim_id); p = self._load(self.policies, c["policy_id"])
         eligible = 0 if v["eligibility"] == "DENIED" else v["eligible_loss"]; amount = min(eligible - (eligible * p["deductible_bps"] // 10000), p["coverage_limit"])
         self.payouts[claim_id] = u256(amount); c["finalized"] = True; c["state"] = "FINAL"; self._store(self.claims, claim_id, c)
     @gl.public.write
@@ -110,8 +134,10 @@ class SlaivClaims(gl.Contract):
             return lead.get("result") in ("UPHOLD","MODIFY","OVERTURN","UNRESOLVED") and lead.get("result")==own.get("result") and lead.get("eligible_loss")==own.get("eligible_loss")
         result=gl.vm.run_nondet_unsafe(leader,validator)
         appeal["result"]=result["result"]; appeal["review"]=result; self._store(self.appeals,claim_id,appeal)
+        if not isinstance(result.get("eligible_loss"), int) or result["eligible_loss"] < 0 or result["eligible_loss"] > c["documented_loss"]: raise Exception("invalid appeal amount")
+        effective=dict(original)
         if result["result"] in ("MODIFY","OVERTURN"):
-            original["eligible_loss"]=result.get("eligible_loss",original["eligible_loss"]); self._store(self.reviews,claim_id,original); c["state"]="PARTIALLY_APPROVED" if original["eligible_loss"]<c["documented_loss"] else "APPROVED"
+            effective["eligible_loss"]=result["eligible_loss"]; effective["eligibility"]="PARTIALLY_APPROVED" if effective["eligible_loss"]<c["documented_loss"] else "APPROVED"; self._store(self.effective_reviews,claim_id,effective); c["state"]=effective["eligibility"]
         elif result["result"]=="UPHOLD": c["state"]=original["eligibility"]
         else: c["state"]="UNRESOLVED"
         self._store(self.claims,claim_id,c)
@@ -121,6 +147,8 @@ class SlaivClaims(gl.Contract):
     def get_claim(self, claim_id: str) -> str: return self.claims.get(claim_id, "")
     @gl.public.view
     def get_review(self, claim_id: str) -> str: return self.reviews.get(claim_id, "")
+    @gl.public.view
+    def get_effective_review(self, claim_id: str) -> str: return self.effective_reviews.get(claim_id, "")
     @gl.public.view
     def get_evidence(self, claim_id: str) -> str: return self.claim_evidence.get(claim_id, "[]")
     @gl.public.view

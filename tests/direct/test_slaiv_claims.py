@@ -12,10 +12,14 @@ def test_policy_and_claim_are_contract_state(direct_vm,direct_deploy,direct_alic
     c.submit_claim('clm_beta','pol_alpha',json.dumps(claim),'e0')
     assert json.loads(c.get_claim('clm_beta'))['state']=='AWAITING_FINALITY'
 
-def test_claimant_evidence_is_persisted_but_cannot_finalize(direct_vm,direct_deploy,direct_alice):
+def test_evidence_is_persisted_and_only_adapter_promotes_finality(direct_vm,direct_deploy,direct_alice,direct_bob):
     direct_vm.sender=direct_alice; c=direct_deploy('contracts/SlaivClaims.py'); p=policy(direct_alice); c.create_policy('pol_alpha',json.dumps(p),'p')
     c.submit_claim('clm_beta','pol_alpha',json.dumps({"policy_id":"pol_alpha","claimant":str(direct_alice).lower(),"validator":"validator-1","documented_loss":100,"incident_at_ts":2}),'e0')
-    e={"kind":"PROTOCOL_FACT","source":"claimant","reference":"fake","commitment":"e1","finality":"FINAL"}; c.append_evidence('clm_beta',json.dumps(e),'e1')
+    e={"kind":"CLAIMANT_ASSERTION","source":"claimant","reference":"claimant-ref","commitment":"e1","finality":"UNVERIFIED"}; c.append_evidence('clm_beta',json.dumps(e),'e1')
     assert len(json.loads(c.get_evidence('clm_beta')))==1
     assert json.loads(c.get_claim('clm_beta'))['state']=='AWAITING_FINALITY'
-    with direct_vm.expect_revert('adapter unavailable'): c.record_protocol_finality('clm_beta',json.dumps(e))
+    protocol={"kind":"PROTOCOL_FACT","protocol":"genlayer","validator":"validator-1","claim_id":"clm_beta","source":"GENLAYER_STAKING_ADAPTER","reference":"genlayer://staking/final-record-1","finality":"FINAL"}
+    direct_vm.sender=direct_bob
+    with direct_vm.expect_revert('protocol authority required'): c.record_protocol_finality('clm_beta',json.dumps(protocol))
+    direct_vm.sender=direct_alice; c.record_protocol_finality('clm_beta',json.dumps(protocol))
+    assert json.loads(c.get_claim('clm_beta'))['state']=='UNDER_REVIEW'

@@ -4,7 +4,7 @@ Slaiv is a GenLayer-native, evidence-driven slashing coverage adjudication MVP. 
 
 ## What it is not
 
-Slaiv is not insurance, a promise of reimbursement, a validator slashing mechanism, a generic uptime monitor, or a centralized oracle. The current browser experience is explicitly **DEMO / FIXTURE MODE**: it has no deployed contract, connected wallet, or configured authoritative protocol endpoint.
+Slaiv is not insurance, a promise of reimbursement, a validator slashing mechanism, a generic uptime monitor, or a centralized oracle. The browser begins in **DEMO / FIXTURE MODE** and enables writes only after it can read the configured contract on the selected network.
 
 ## Architecture and boundary
 
@@ -12,11 +12,11 @@ See [architecture](docs/ARCHITECTURE.md). The contract’s non-deterministic rev
 
 ## Contract API
 
-`contracts/SlaivClaims.py` exposes `create_policy`, `submit_claim`, `append_evidence`, `review_slashing_claim`, `record_appeal`, `finalize_claim`, and policy/claim/review/stat getters. It uses GenLayer’s Equivalence Principle boundary for review and does not transfer arbitrary value from free-form text.
+`contracts/SlaivClaims.py` exposes policy, claim, claimant-evidence, adapter-finality, review, appeal, finalization and read methods. It uses GenLayer’s Equivalence Principle boundary for review and does not transfer arbitrary value from free-form text.
 
 ## Provenance and finality
 
-Records are labelled PROTOCOL FACT, MONITOR OBSERVATION, CLAIMANT ASSERTION, GENLAYER JUDGMENT, or DEMO FIXTURE. Fixture records never masquerade as protocol facts and contain no made-up block, transaction, hash, or retrieval timestamp. Underlying slash finality is distinct from GenLayer transaction finality; pending underlying finality blocks review and payout.
+Claimants may add only `CLAIMANT_ASSERTION` evidence. Only the narrowly scoped `protocol_authority` adapter role can append a normalized `PROTOCOL_FACT` and move a claim from `AWAITING_FINALITY` to `UNDER_REVIEW`; it cannot adjudicate or set payout. The adapter must independently fetch and retain the referenced authoritative record before sending that transaction. Underlying slash finality is distinct from GenLayer transaction finality; pending underlying finality blocks review and payout. “Commitment” fields are correlation labels, not cryptographic proof claims.
 
 ## State machine and appeals
 
@@ -34,11 +34,12 @@ npm run lint
 npm run typecheck
 npm test
 npm run build
+./.venv/Scripts/pytest.exe tests/direct -v
 npm run dev
 ```
 
-Configure only public deployment values in `.env` based on `.env.example`. GitHub Actions runs ESLint, TypeScript compilation, unit tests and a production build on every push and pull request.
+Configure only public deployment values in `.env` based on `.env.example`. The project intentionally has no hosted CI workflow; run the validation commands locally before release.
 
 ## Deployment limitation
 
-Studionet contract deployment: `0x6361B95A2AaD2b42CF2299b01123c301Ac6e5A1D`; deployment transaction `0xab035af3f463e7296111a8649fabccca88ee1b7d7a7e474fd597d1d437758d77`. It was deployed with Python 3.12.10 and GenLayer CLI 0.39.2 after `genvm-lint check`, `typecheck`, and `schema` completed. The browser remains in demo mode until a public RPC URL is configured.
+The recorded Studionet address is historical and does not represent the current source. Do not configure it as a release address; see [deployment record](docs/DEPLOYMENT.md).
