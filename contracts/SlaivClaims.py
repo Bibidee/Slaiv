@@ -36,11 +36,11 @@ class SlaivClaims(gl.Contract):
         if raw == "": raise Exception("unknown record")
         return json.loads(raw)
     def _store(self, records: TreeMap[str, str], key: str, value: dict) -> None:
-        records[key] = json.dumps(value, sort_keys=True, separators=(",", ":"))
+        records[key] = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
     def _sender(self) -> str: return str(gl.message.sender_address).lower()
     def _is_admin(self) -> bool: return self._sender() == str(self.authority_admin).lower()
     def _assert_policy(self, p: dict) -> None:
-        if p.get("holder", "").lower() != self._sender(): raise Exception("holder mismatch")
+        if str(p.get("holder", "")).lower() != self._sender(): raise Exception("holder mismatch")
         if p.get("protocol") != "genlayer" or p.get("validator", "") == "": raise Exception("invalid policy subject")
         if not isinstance(p.get("coverage_start_ts"), int) or p["coverage_start_ts"] >= p.get("coverage_end_ts", 0): raise Exception("invalid coverage dates")
         if not isinstance(p.get("coverage_limit"), int) or p["coverage_limit"] <= 0: raise Exception("invalid coverage limit")
@@ -48,9 +48,9 @@ class SlaivClaims(gl.Contract):
         if not isinstance(p.get("covered_events"), list) or len(p["covered_events"]) == 0 or any(x not in EVENTS for x in p["covered_events"]): raise Exception("invalid covered events")
         if p.get("payout_rule") != "min(eligible_loss_after_deductible, coverage_limit)": raise Exception("unsupported payout rule")
     @gl.public.write
-    def create_policy(self, policy_id: str, policy_json: str, policy_commitment: str) -> None:
+    def create_policy(self, policy_id: str, policy_json: dict, policy_commitment: str) -> None:
         if self.policies.get(policy_id, "") != "": raise Exception("duplicate policy")
-        p = json.loads(policy_json); self._assert_policy(p)
+        p = policy_json; self._assert_policy(p)
         if p.get("policy_id") != policy_id: raise Exception("policy id mismatch")
         # A commitment is an opaque correlation label, never represented as a
         # cryptographic proof.  The canonical stored JSON is authoritative.
@@ -58,28 +58,28 @@ class SlaivClaims(gl.Contract):
         p["active"] = True; p["created_by"] = self._sender(); self._store(self.policies, policy_id, p)
         owner = self.user_policies.get(self._sender(), "[]"); self.user_policies[self._sender()] = json.dumps(json.loads(owner) + [policy_id]); self.policy_count += 1
     @gl.public.write
-    def submit_claim(self, claim_id: str, policy_id: str, claim_json: str, evidence_commitment: str) -> None:
+    def submit_claim(self, claim_id: str, policy_id: str, claim_json: dict, evidence_commitment: str) -> None:
         if self.claims.get(claim_id, "") != "": raise Exception("duplicate claim")
-        p = self._load(self.policies, policy_id); c = json.loads(claim_json)
-        if self._sender() != p["holder"].lower() or c.get("claimant", "").lower() != self._sender(): raise Exception("unauthorized claimant")
-        if c.get("policy_id") != policy_id or c.get("validator") != p["validator"]: raise Exception("policy mismatch")
+        p = self._load(self.policies, policy_id); c = claim_json
+        if self._sender() != str(p["holder"]).lower() or str(c.get("claimant", "")).lower() != self._sender(): raise Exception("unauthorized claimant")
+        if c.get("policy_id") != policy_id or str(c.get("validator")) != str(p["validator"]): raise Exception("policy mismatch")
         if not isinstance(c.get("documented_loss"), int) or c["documented_loss"] <= 0 or not isinstance(c.get("incident_at_ts"), int): raise Exception("invalid claim")
         if c["incident_at_ts"] < p["coverage_start_ts"] or c["incident_at_ts"] > p["coverage_end_ts"]: raise Exception("incident outside coverage")
         # Claimants can assert a finality value, but it is never authoritative.
         # Commitments are opaque references, not cryptographic proof: canonical stored JSON is authoritative.
         c["claim_id"] = claim_id; c["evidence_commitment"] = evidence_commitment; c["underlying_finality"] = "PENDING"; c["finalized"] = False; c["state"] = "AWAITING_FINALITY"; self._store(self.claims, claim_id, c); self.claim_evidence[claim_id] = "[]"; self.claim_count += 1
     @gl.public.write
-    def append_evidence(self, claim_id: str, evidence_json: str, evidence_commitment: str) -> None:
+    def append_evidence(self, claim_id: str, evidence_json: dict, evidence_commitment: str) -> None:
         c = self._load(self.claims, claim_id)
-        if c["claimant"].lower() != self._sender(): raise Exception("unauthorized evidence")
-        e = json.loads(evidence_json)
+        if str(c["claimant"]).lower() != self._sender(): raise Exception("unauthorized evidence")
+        e = evidence_json
         if e.get("commitment") != evidence_commitment or e.get("kind") != "CLAIMANT_ASSERTION" or len(e.get("source", "")) > 500 or len(e.get("reference", "")) > 2000: raise Exception("invalid claimant evidence")
         items = json.loads(self.claim_evidence.get(claim_id, "[]"))
         if len(items) >= 12: raise Exception("evidence limit")
         e["submitter"] = self._sender(); items.append(e); self.claim_evidence[claim_id] = json.dumps(items, sort_keys=True, separators=(",", ":"))
         self._store(self.claims, claim_id, c)
     @gl.public.write
-    def record_protocol_finality(self, claim_id: str, protocol_evidence_json: str) -> None:
+    def record_protocol_finality(self, claim_id: str, protocol_evidence_json: dict) -> None:
         """Accept only normalized, independently-verifiable adapter evidence.
 
         The production adapter must fetch the referenced authoritative record
@@ -89,7 +89,7 @@ class SlaivClaims(gl.Contract):
         if str(gl.message.sender_address).lower() != str(self.protocol_authority).lower(): raise Exception("protocol authority required")
         c = self._load(self.claims, claim_id); p = self._load(self.policies, c["policy_id"])
         if c["state"] != "AWAITING_FINALITY": raise Exception("finality already recorded")
-        e = json.loads(protocol_evidence_json)
+        e = protocol_evidence_json
         source_hash = e.get("source_record_sha256", "")
         required = (e.get("kind") == "PROTOCOL_FACT" and e.get("protocol") == "genlayer" and e.get("validator") == p["validator"] and e.get("claim_id") == claim_id and e.get("finality") == "FINAL" and e.get("source") == "GENLAYER_STAKING_ADAPTER" and isinstance(e.get("reference"), str) and e["reference"].startswith("https://") and isinstance(e.get("observed_at_ts"), int) and e["observed_at_ts"] > 0 and isinstance(source_hash, str) and len(source_hash) == 64 and all(ch in "0123456789abcdef" for ch in source_hash))
         if not required: raise Exception("invalid protocol evidence")
@@ -131,14 +131,14 @@ class SlaivClaims(gl.Contract):
     @gl.public.write
     def finalize_claim(self, claim_id: str) -> None:
         c = self._load(self.claims, claim_id)
-        if c["claimant"].lower() != self._sender() or c["finalized"] or c["state"] not in TERMINAL: raise Exception("cannot finalize")
+        if str(c["claimant"]).lower() != self._sender() or c["finalized"] or c["state"] not in TERMINAL: raise Exception("cannot finalize")
         v = self._load(self.effective_reviews, claim_id); p = self._load(self.policies, c["policy_id"])
         eligible = 0 if v["eligibility"] == "DENIED" else v["eligible_loss"]; amount = min(eligible - (eligible * p["deductible_bps"] // 10000), p["coverage_limit"])
         self.payouts[claim_id] = u256(amount); c["finalized"] = True; c["state"] = "FINAL"; self._store(self.claims, claim_id, c)
     @gl.public.write
     def record_appeal(self, claim_id: str, ground: str, new_evidence: str) -> None:
         c=self._load(self.claims, claim_id)
-        if c["claimant"].lower()!=self._sender() or c["state"] not in ("DENIED","PARTIALLY_APPROVED","UNRESOLVED") or self.appeals.get(claim_id,"")!="" or len(ground)<20 or len(ground)>2000 or new_evidence=="": raise Exception("invalid appeal")
+        if str(c["claimant"]).lower()!=self._sender() or c["state"] not in ("DENIED","PARTIALLY_APPROVED","UNRESOLVED") or self.appeals.get(claim_id,"")!="" or len(ground)<20 or len(ground)>2000 or new_evidence=="": raise Exception("invalid appeal")
         self._store(self.appeals,claim_id,{"appellant":self._sender(),"ground":ground,"new_evidence":new_evidence,"state":"APPEALED"}); c["state"]="APPEALED"; self._store(self.claims,claim_id,c)
     @gl.public.write
     def review_appeal(self, claim_id: str) -> None:
