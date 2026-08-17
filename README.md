@@ -18,6 +18,8 @@ See [architecture](docs/ARCHITECTURE.md). The contract’s non-deterministic rev
 
 Claimants may add only `CLAIMANT_ASSERTION` evidence. Only the narrowly scoped `protocol_authority` adapter role can append a normalized `PROTOCOL_FACT` and move a claim from `AWAITING_FINALITY` to `UNDER_REVIEW`; it cannot adjudicate or set payout. The adapter must independently fetch and retain the referenced authoritative record before sending that transaction. Underlying slash finality is distinct from GenLayer transaction finality; pending underlying finality blocks review and payout. “Commitment” fields are correlation labels, not cryptographic proof claims.
 
+The operator workflow, required source schema, allowlist and authority rotation are documented in [the protocol adapter guide](docs/PROTOCOL_ADAPTER.md).
+
 ## State machine and appeals
 
 Claims follow explicit states: DRAFT → SUBMITTED → EVIDENCE_PENDING/AWAITING_FINALITY/UNDER_REVIEW → APPROVED/PARTIALLY_APPROVED/DENIED/UNRESOLVED → APPEALED/FINAL. Appeals require the claimant and material new evidence. See [demo guide](docs/DEMO.md).
@@ -34,7 +36,7 @@ npm run lint
 npm run typecheck
 npm test
 npm run build
-./.venv/Scripts/pytest.exe tests/direct -v
+wsl bash -lc 'cd /home/imani/slaivdirect && .venv/bin/python -m pytest tests/direct -v'
 npm run dev
 ```
 
