@@ -31,3 +31,10 @@ def test_evidence_is_persisted_and_rotated_adapter_promotes_finality(direct_vm,d
     direct_vm.sender=direct_alice; c.propose_protocol_authority(contract_address(direct_bob))
     direct_vm.sender=direct_bob; c.accept_protocol_authority(); c.record_protocol_finality('clm_beta',json.dumps(protocol))
     assert json.loads(c.get_claim('clm_beta'))['state']=='UNDER_REVIEW'
+
+def test_protocol_finality_rejects_unfingerprinted_evidence(direct_vm,direct_deploy,direct_alice):
+    direct_vm.sender=direct_alice; c=direct_deploy('contracts/SlaivClaims.py'); c.create_policy('pol_alpha',json.dumps(policy(direct_alice)),'p')
+    c.submit_claim('clm_bad','pol_alpha',json.dumps({"policy_id":"pol_alpha","claimant":address(direct_alice),"validator":"validator-1","documented_loss":100,"incident_at_ts":2}),'e0')
+    bad={"kind":"PROTOCOL_FACT","protocol":"genlayer","validator":"validator-1","claim_id":"clm_bad","source":"GENLAYER_STAKING_ADAPTER","reference":"https://evidence.example/final-record","observed_at_ts":2,"finality":"FINAL"}
+    with direct_vm.expect_revert('invalid protocol evidence'): c.record_protocol_finality('clm_bad',json.dumps(bad))
+    assert json.loads(c.get_claim('clm_bad'))['state']=='AWAITING_FINALITY'
