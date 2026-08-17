@@ -5,11 +5,12 @@
 - Network: Studionet (`https://studio.genlayer.com/api`)
 - Contract: `0xE61E6F3544c4e7ae3842C0c2b8A3BF61121fE4B3`
 - Transaction: `0x5db1cffd6985e5d286650d5c643745d767163e0331f273b090e4eab1e93515d5`
-- Initial admin / protocol authority: `0x79b3ecbe6a65bee93b2fcda78e6909892671507f`
+- Authority admin: `0x79b3ecbe6a65bee93b2fcda78e6909892671507f`
+- Active protocol authority: `0xe362cf45d3b3dfb38ef78099daba6e3e7c96c792`
 - CLI: 0.39.2
-- Verification: `get_protocol_stats()` returned `{"policy_count": 0, "claim_count": 0}` and `get_protocol_authority()` returned the expected initial admin/authority after deployment; Direct Mode passed 2/2 in WSL/Linux with `genlayer-test==0.29.2`.
+- Verification: `get_protocol_stats()` returned `{"policy_count": 0, "claim_count": 0}` after deployment. Following the two-step rotation, `get_protocol_authority()` returned the separate active authority `0xe362cf45d3b3dfb38ef78099daba6e3e7c96c792`; Direct Mode passed 2/2 in WSL/Linux with `genlayer-test==0.29.2`.
 
-The current deployment adds a two-step authority rotation (`propose_protocol_authority`, then `accept_protocol_authority`). Rotate to a separate secured operator wallet before it records any production evidence. The authority is limited to normalized protocol facts, not adjudication or payout.
+The current deployment adds a two-step authority rotation (`propose_protocol_authority`, then `accept_protocol_authority`). The rotation to the separate secured operator wallet is complete. The authority is limited to normalized protocol facts, not adjudication or payout.
 
 ## Superseded deployment
 
