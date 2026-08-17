@@ -1,20 +1,23 @@
 import json
 import pytest
 
+def address(account):
+    return "0x" + bytes(account).hex()
+
 def policy(owner):
-    return {"policy_id":"pol_alpha","holder":str(owner).lower(),"protocol":"genlayer","validator":"validator-1","coverage_start_ts":1,"coverage_end_ts":9999999999,"coverage_limit":500,"covered_events":["MISSED_EXECUTION_WINDOW"],"exclusions":[],"deductible_bps":500,"payout_rule":"min(eligible_loss_after_deductible, coverage_limit)","policy_commitment":"p"}
+    return {"policy_id":"pol_alpha","holder":address(owner),"protocol":"genlayer","validator":"validator-1","coverage_start_ts":1,"coverage_end_ts":9999999999,"coverage_limit":500,"covered_events":["MISSED_EXECUTION_WINDOW"],"exclusions":[],"deductible_bps":500,"payout_rule":"min(eligible_loss_after_deductible, coverage_limit)","policy_commitment":"p"}
 
 def test_policy_and_claim_are_contract_state(direct_vm,direct_deploy,direct_alice):
     direct_vm.sender=direct_alice; c=direct_deploy('contracts/SlaivClaims.py')
     p=policy(direct_alice); c.create_policy('pol_alpha',json.dumps(p),'p')
-    assert 'pol_alpha' in c.get_user_policies(direct_alice)
-    claim={"policy_id":"pol_alpha","claimant":str(direct_alice).lower(),"validator":"validator-1","documented_loss":100,"incident_at_ts":2,"underlying_finality":"FINAL"}
+    assert json.loads(c.get_policy('pol_alpha'))['holder'] == address(direct_alice)
+    claim={"policy_id":"pol_alpha","claimant":address(direct_alice),"validator":"validator-1","documented_loss":100,"incident_at_ts":2,"underlying_finality":"FINAL"}
     c.submit_claim('clm_beta','pol_alpha',json.dumps(claim),'e0')
     assert json.loads(c.get_claim('clm_beta'))['state']=='AWAITING_FINALITY'
 
 def test_evidence_is_persisted_and_only_adapter_promotes_finality(direct_vm,direct_deploy,direct_alice,direct_bob):
     direct_vm.sender=direct_alice; c=direct_deploy('contracts/SlaivClaims.py'); p=policy(direct_alice); c.create_policy('pol_alpha',json.dumps(p),'p')
-    c.submit_claim('clm_beta','pol_alpha',json.dumps({"policy_id":"pol_alpha","claimant":str(direct_alice).lower(),"validator":"validator-1","documented_loss":100,"incident_at_ts":2}),'e0')
+    c.submit_claim('clm_beta','pol_alpha',json.dumps({"policy_id":"pol_alpha","claimant":address(direct_alice),"validator":"validator-1","documented_loss":100,"incident_at_ts":2}),'e0')
     e={"kind":"CLAIMANT_ASSERTION","source":"claimant","reference":"claimant-ref","commitment":"e1","finality":"UNVERIFIED"}; c.append_evidence('clm_beta',json.dumps(e),'e1')
     assert len(json.loads(c.get_evidence('clm_beta')))==1
     assert json.loads(c.get_claim('clm_beta'))['state']=='AWAITING_FINALITY'

@@ -42,4 +42,4 @@ Configure only public deployment values in `.env` based on `.env.example`. The p
 
 ## Deployment limitation
 
-The recorded Studionet address is historical and does not represent the current source. Do not configure it as a release address; see [deployment record](docs/DEPLOYMENT.md).
+Current Studionet release deployment: `0x3d19d355EC07b9cCFB5FACc367449A5e3B52DaD7` (transaction `0xd95466efefee7df2b295e71e353f7ea8ee498d34bde19bffb9326786d7596b38`). It was read back successfully after Direct Mode passed on Linux; see [deployment record](docs/DEPLOYMENT.md).
