@@ -3,13 +3,20 @@
 ## Current Studionet deployment
 
 - Network: Studionet (`https://studio.genlayer.com/api`)
+- Contract: `0xE61E6F3544c4e7ae3842C0c2b8A3BF61121fE4B3`
+- Transaction: `0x5db1cffd6985e5d286650d5c643745d767163e0331f273b090e4eab1e93515d5`
+- Authority admin: `0x79b3ecbe6a65bee93b2fcda78e6909892671507f`
+- Active protocol authority: `0xe362cf45d3b3dfb38ef78099daba6e3e7c96c792`
+- CLI: 0.39.2
+- Verification: `get_protocol_stats()` returned `{"policy_count": 0, "claim_count": 0}` after deployment. Following the two-step rotation, `get_protocol_authority()` returned the separate active authority `0xe362cf45d3b3dfb38ef78099daba6e3e7c96c792`; Direct Mode passed 2/2 in WSL/Linux with `genlayer-test==0.29.2`.
+
+The current deployment adds a two-step authority rotation (`propose_protocol_authority`, then `accept_protocol_authority`). The rotation to the separate secured operator wallet is complete. The authority is limited to normalized protocol facts, not adjudication or payout.
+
+## Superseded deployment
+
 - Contract: `0x3d19d355EC07b9cCFB5FACc367449A5e3B52DaD7`
 - Transaction: `0xd95466efefee7df2b295e71e353f7ea8ee498d34bde19bffb9326786d7596b38`
-- Deployer / protocol authority: `0x79b3ecbe6a65bee93b2fcda78e6909892671507f`
-- CLI: 0.39.2
-- Verification: `get_protocol_stats()` returned `{"policy_count": 0, "claim_count": 0}` after deployment; Direct Mode passed 2/2 in WSL/Linux with `genlayer-test==0.29.2`.
-
-The current deployment initializes the narrow protocol-authority adapter role to the deployer. It is an authority boundary for normalized protocol facts, not an adjudication or payout override.
+- Reason: superseded by the authority rotation and evidence-fingerprint release.
 
 ## Historical deployment
 

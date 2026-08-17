@@ -4,7 +4,7 @@ import { scenarios, demoPolicy, validators } from './fixtures.js';
 import { GenLayerProtocolAdapter } from './adapter.js';
 import { deployment, connectWallet, readContract, writeContract } from './genlayer.js';
 
-const app=document.querySelector('#app'); const adapter=new GenLayerProtocolAdapter({rpcUrl:import.meta.env.VITE_GENLAYER_RPC_URL}); let wallet=null; let live={state:'checking',reason:'Checking configured contract…'};
+const app=document.querySelector('#app'); const adapter=new GenLayerProtocolAdapter({rpcUrl:import.meta.env.VITE_GENLAYER_RPC_URL,sourceUrl:import.meta.env.VITE_PROTOCOL_FINALITY_SOURCE_URL,allowedOrigins:(import.meta.env.VITE_PROTOCOL_FINALITY_ALLOWED_ORIGINS||'').split(',').filter(Boolean)}); let wallet=null; let live={state:'checking',reason:'Checking configured contract…'};
 const nav=[['Overview','/'],['Validators','/validators'],['Monitor','/monitor'],['Policies','/policies'],['Claims','/claims'],['About','/about']];
 const esc=v=>String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const tag=x=>`<button class="tag DEMO-FIXTURE" data-provenance='${encodeURIComponent(JSON.stringify(x))}'>DEMO FIXTURE</button>`;

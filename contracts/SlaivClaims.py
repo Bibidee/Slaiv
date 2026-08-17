@@ -19,13 +19,17 @@ class SlaivClaims(gl.Contract):
     user_policies: TreeMap[str, str]
     policy_count: u32
     claim_count: u32
+    authority_admin: Address
     protocol_authority: Address
+    pending_protocol_authority: Address
 
     def __init__(self):
         # This is a deliberately narrow, auditable adapter boundary.  It is not
         # an administrator override: only this role can attest a normalized
         # protocol fact, and it cannot adjudicate or set a payout.
+        self.authority_admin = gl.message.sender_address
         self.protocol_authority = gl.message.sender_address
+        self.pending_protocol_authority = gl.message.sender_address
 
     def _load(self, records: TreeMap[str, str], key: str) -> dict:
         raw = records.get(key, "")
@@ -34,6 +38,7 @@ class SlaivClaims(gl.Contract):
     def _store(self, records: TreeMap[str, str], key: str, value: dict) -> None:
         records[key] = json.dumps(value, sort_keys=True, separators=(",", ":"))
     def _sender(self) -> str: return str(gl.message.sender_address).lower()
+    def _is_admin(self) -> bool: return self._sender() == str(self.authority_admin).lower()
     def _assert_policy(self, p: dict) -> None:
         if p.get("holder", "").lower() != self._sender(): raise Exception("holder mismatch")
         if p.get("protocol") != "genlayer" or p.get("validator", "") == "": raise Exception("invalid policy subject")
@@ -85,12 +90,24 @@ class SlaivClaims(gl.Contract):
         c = self._load(self.claims, claim_id); p = self._load(self.policies, c["policy_id"])
         if c["state"] != "AWAITING_FINALITY": raise Exception("finality already recorded")
         e = json.loads(protocol_evidence_json)
-        required = (e.get("kind") == "PROTOCOL_FACT" and e.get("protocol") == "genlayer" and e.get("validator") == p["validator"] and e.get("claim_id") == claim_id and e.get("finality") == "FINAL" and e.get("source") == "GENLAYER_STAKING_ADAPTER" and isinstance(e.get("reference"), str) and len(e["reference"]) >= 12)
+        source_hash = e.get("source_record_sha256", "")
+        required = (e.get("kind") == "PROTOCOL_FACT" and e.get("protocol") == "genlayer" and e.get("validator") == p["validator"] and e.get("claim_id") == claim_id and e.get("finality") == "FINAL" and e.get("source") == "GENLAYER_STAKING_ADAPTER" and isinstance(e.get("reference"), str) and e["reference"].startswith("https://") and isinstance(e.get("observed_at_ts"), int) and e["observed_at_ts"] > 0 and isinstance(source_hash, str) and len(source_hash) == 64 and all(ch in "0123456789abcdef" for ch in source_hash))
         if not required: raise Exception("invalid protocol evidence")
         items = json.loads(self.claim_evidence.get(claim_id, "[]"))
         if len(items) >= 12: raise Exception("evidence limit")
         e["submitter"] = self._sender(); items.append(e); self.claim_evidence[claim_id] = json.dumps(items, sort_keys=True, separators=(",", ":"))
         c["underlying_finality"] = "FINAL"; c["state"] = "UNDER_REVIEW"; self._store(self.claims, claim_id, c)
+    @gl.public.write
+    def propose_protocol_authority(self, new_authority: Address) -> None:
+        if not self._is_admin() or str(new_authority).lower() == self._sender(): raise Exception("invalid authority proposal")
+        self.pending_protocol_authority = new_authority
+    @gl.public.write
+    def accept_protocol_authority(self) -> None:
+        if self._sender() != str(self.pending_protocol_authority).lower(): raise Exception("pending authority required")
+        self.protocol_authority = self.pending_protocol_authority
+    @gl.public.view
+    def get_protocol_authority(self) -> str:
+        return json.dumps({"admin":str(self.authority_admin).lower(),"authority":str(self.protocol_authority).lower(),"pending":str(self.pending_protocol_authority).lower()})
     def _valid_verdict(self, v: dict, c: dict) -> bool:
         base = v.get("eligibility") in ("APPROVED","PARTIALLY_APPROVED","DENIED","UNRESOLVED") and v.get("incident_class") in EVENTS and isinstance(v.get("slash_final"), bool) and isinstance(v.get("covered_event"), bool) and isinstance(v.get("exclusion_triggered"), bool) and isinstance(v.get("eligible_loss"), int) and 0 <= v["eligible_loss"] <= c["documented_loss"] and isinstance(v.get("confidence"), (int,float)) and 0 <= v["confidence"] <= 1
         if not base: return False

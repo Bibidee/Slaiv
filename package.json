@@ -10,6 +10,7 @@
     "audit:fixtures": "node scripts/lint.mjs",
     "test": "vitest run",
     "build": "vite build",
+    "adapter:finality": "node scripts/record-protocol-finality.mjs",
     "preview": "vite preview"
   },
   "devDependencies": {
