@@ -3,12 +3,12 @@
 ## Current Studionet deployment
 
 - Network: Studionet (`https://studio.genlayer.com/api`)
-- Contract: `0xE61E6F3544c4e7ae3842C0c2b8A3BF61121fE4B3`
-- Transaction: `0x5db1cffd6985e5d286650d5c643745d767163e0331f273b090e4eab1e93515d5`
+- Contract: `0xadF6812B3e124BaFAfE1b17C22c4530a9D95F4C4`
+- Transaction: `0x19a6f65f318d24e5e848df93f34202d8aec79e4ce4491171b5eed9f10bb0b18c`
 - Authority admin: `0x79b3ecbe6a65bee93b2fcda78e6909892671507f`
 - Active protocol authority: `0xe362cf45d3b3dfb38ef78099daba6e3e7c96c792`
 - CLI: 0.39.2
-- Verification: `get_protocol_stats()` returned `{"policy_count": 0, "claim_count": 0}` after deployment. Following the two-step rotation, `get_protocol_authority()` returned the separate active authority `0xe362cf45d3b3dfb38ef78099daba6e3e7c96c792`; Direct Mode passed 2/2 in WSL/Linux with `genlayer-test==0.29.2`.
+- Verification: after the two-step rotation, `get_protocol_authority()` returned the separate active authority `0xe362cf45d3b3dfb38ef78099daba6e3e7c96c792`. A labelled live test policy, claim and claimant-evidence record were read back successfully; the claim remains `AWAITING_FINALITY`. Direct Mode passed 4/4 in WSL/Linux with `genlayer-test==0.29.2`.
 
 The current deployment adds a two-step authority rotation (`propose_protocol_authority`, then `accept_protocol_authority`). The rotation to the separate secured operator wallet is complete. The authority is limited to normalized protocol facts, not adjudication or payout.
 
