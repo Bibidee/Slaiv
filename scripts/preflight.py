@@ -36,10 +36,11 @@ def main() -> int:
     run([sys.executable, "scripts/audit_contract_candidates.py"])
     wsl = os.environ.get("SLAIV_DIRECT_PYTHON", "/home/imani/slaivdirect/.venv/bin/python")
     run(["wsl.exe", "bash", "-lc", f"cd /mnt/c/Users/ojiku/Desktop/Slaiv && {wsl} -m pytest tests/direct -q"])
-    run(["npm", "run", "lint"])
-    run(["npm", "run", "typecheck"])
-    run(["npm", "test"])
-    run(["npm", "run", "build"])
+    npm = "npm.cmd" if os.name == "nt" else "npm"
+    run([npm, "run", "lint"])
+    run([npm, "run", "typecheck"])
+    run([npm, "test"])
+    run([npm, "run", "build"])
     run([sys.executable, "scripts/source_match.py", "--address", record["contract_address"], "--rpc", record.get("rpc_url", "https://studio.genlayer.com/api")])
     print("PREFLIGHT: PASS")
     return 0

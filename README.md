@@ -44,4 +44,4 @@ Configure only public deployment values in `.env` based on `.env.example`. The p
 
 ## Deployment limitation
 
-Current Studionet release deployment: `0xadF6812B3e124BaFAfE1b17C22c4530a9D95F4C4` (transaction `0x19a6f65f318d24e5e848df93f34202d8aec79e4ce4491171b5eed9f10bb0b18c`). It was read back successfully after the complete Direct Mode lifecycle passed on Linux; see [deployment record](docs/DEPLOYMENT.md). Its protocol authority is rotated to a separate secured operator wallet.
+Current hardened Studionet release: `0xAcf34B0F9d40f7060E370577689AF5935a215dD6` (deployment transaction `0xde7e9cfe607c4c2a3b7f19bb3f018c8e45736a32c3377e60676182b16cbe931c`). See [submission readiness](SUBMISSION_READINESS.md) for the exact source hash, authority boundary, Direct Mode coverage, source match, and documented external finality limitation.
