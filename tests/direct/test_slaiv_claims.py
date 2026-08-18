@@ -9,7 +9,7 @@ def contract_address(account):
     return Address(bytes(account))
 
 def policy(owner):
-    return {"policy_id":"pol_alpha","holder":address(owner),"protocol":"genlayer","validator":"validator-1","coverage_start_ts":1,"coverage_end_ts":9999999999,"coverage_limit":500,"covered_events":["MISSED_EXECUTION_WINDOW"],"exclusions":[],"deductible_bps":500,"payout_rule":"min(eligible_loss_after_deductible, coverage_limit)","policy_commitment":"p"}
+    return {"policy_id":"pol_alpha","holder":address(owner),"protocol":"genlayer","subject_network":"studionet","validator":"validator-1","coverage_start_ts":1,"coverage_end_ts":9999999999,"coverage_limit":500,"covered_events":["MISSED_EXECUTION_WINDOW"],"exclusions":[],"deductible_bps":500,"payout_rule":"min(eligible_loss_after_deductible, coverage_limit)","policy_commitment":"p"}
 
 def evidence(claim_id, evidence_id, kind="CLAIMANT_ASSERTION"):
     return {"claim_id":claim_id,"evidence_id":evidence_id,"kind":kind,"source":"test source","reference":"https://evidence.example/"+evidence_id,"content_hash":"a"*64,"submitted_at":2}

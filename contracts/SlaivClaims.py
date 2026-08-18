@@ -6,6 +6,7 @@ from genlayer import *
 import json
 
 EVENTS = ("MISSED_EXECUTION_WINDOW", "MISSED_APPEAL_WINDOW")
+SUBJECT_NETWORKS = ("studionet", "testnetAsimov", "testnetBradbury")
 TERMINAL = ("APPROVED", "PARTIALLY_APPROVED", "DENIED")
 EVIDENCE_KINDS = ("CLAIMANT_ASSERTION", "PUBLIC_SOURCE", "PROTOCOL_FACT")
 MAX_PAGE_SIZE = 50
@@ -69,7 +70,7 @@ class SlaivClaims(gl.Contract):
     def _assert_policy(self, p: dict) -> None:
         if str(p.get("holder", "")).lower() != self._sender(): raise Exception("holder mismatch")
         if not isinstance(p.get("policy_id"), str) or len(p["policy_id"]) < 3 or len(p["policy_id"]) > 80: raise Exception("invalid policy id")
-        if p.get("protocol") != "genlayer" or not isinstance(p.get("validator"), (str, Address)) or str(p["validator"]) == "": raise Exception("invalid policy subject")
+        if p.get("protocol") != "genlayer" or p.get("subject_network") not in SUBJECT_NETWORKS or not isinstance(p.get("validator"), (str, Address)) or str(p["validator"]) == "": raise Exception("invalid policy subject")
         if not isinstance(p.get("coverage_start_ts"), int) or p["coverage_start_ts"] >= p.get("coverage_end_ts", 0): raise Exception("invalid coverage dates")
         if not isinstance(p.get("coverage_limit"), int) or p["coverage_limit"] <= 0: raise Exception("invalid coverage limit")
         if not isinstance(p.get("deductible_bps"), int) or p["deductible_bps"] < 0 or p["deductible_bps"] > 10000: raise Exception("invalid deductible")
@@ -120,7 +121,7 @@ class SlaivClaims(gl.Contract):
         if c["state"] != "AWAITING_FINALITY": raise Exception("finality already recorded")
         e = protocol_evidence_json
         source_hash = e.get("content_hash", "")
-        required = (e.get("kind") == "PROTOCOL_FACT" and e.get("protocol") == "genlayer" and str(e.get("validator")) == str(p["validator"]) and e.get("claim_id") == claim_id and e.get("finality") == "FINAL" and e.get("network") in ("studionet", "testnetAsimov", "testnetBradbury") and e.get("source") == "GENLAYER_STAKING_ADAPTER" and isinstance(e.get("reference"), str) and e["reference"].startswith("https://") and isinstance(e.get("event_id"), str) and len(e["event_id"]) > 0 and isinstance(e.get("submitted_at"), int) and e["submitted_at"] > 0 and self._sha256(source_hash))
+        required = (e.get("kind") == "PROTOCOL_FACT" and e.get("protocol") == "genlayer" and str(e.get("validator")) == str(p["validator"]) and e.get("claim_id") == claim_id and e.get("finality") == "FINAL" and e.get("network") == p["subject_network"] and e.get("network") in SUBJECT_NETWORKS and e.get("source") == "GENLAYER_STAKING_ADAPTER" and isinstance(e.get("reference"), str) and e["reference"].startswith("https://") and isinstance(e.get("event_id"), str) and len(e["event_id"]) > 0 and isinstance(e.get("submitted_at"), int) and e["submitted_at"] > 0 and self._sha256(source_hash))
         if not required: raise Exception("invalid protocol evidence")
         event_key = str(e["network"]) + ":" + str(e["validator"]) + ":" + e["event_id"]
         if self.consumed_protocol_events.get(event_key, "") != "": raise Exception("protocol event already used")

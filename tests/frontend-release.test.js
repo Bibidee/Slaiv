@@ -4,6 +4,13 @@ import { allowedActions } from '../app/lib/actions.js';
 import { loadClaimDossier } from '../app/lib/genlayer.js';
 
 describe('release frontend boundaries',()=>{
+  it('binds and displays the policy subject network',async()=>{
+    const create=await readFile(new URL('../app/coverage/new/page.jsx',import.meta.url),'utf8');
+    const detail=await readFile(new URL('../app/coverage/[id]/page.jsx',import.meta.url),'utf8');
+    expect(create).toContain('subject_network');
+    expect(create).toContain('subjectNetwork');
+    expect(detail).toContain('p.subject_network');
+  });
   it('resolves the dossier policy from claim.policy_id, never claim ID',async()=>{
     const calls=[];
     const responses={get_claim:JSON.stringify({claim_id:'clm_1',policy_id:'pol_9'}),get_policy:JSON.stringify({policy_id:'pol_9'}),get_evidence:'[]',get_review:'',get_effective_review:'',get_payout:0};
