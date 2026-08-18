@@ -11,7 +11,7 @@ def address(account):
 
 def policy(owner, policy_id="pol_alpha", **changes):
     value = {
-        "policy_id": policy_id, "holder": address(owner), "protocol": "genlayer",
+        "policy_id": policy_id, "holder": address(owner), "protocol": "genlayer", "subject_network": "studionet",
         "validator": "validator-1", "coverage_start_ts": 10,
         "coverage_end_ts": 1000, "coverage_limit": 500,
         "covered_events": ["MISSED_EXECUTION_WINDOW"], "exclusions": [],
@@ -74,6 +74,8 @@ def verdict(claim_id="clm_alpha", policy_id="pol_alpha", **changes):
 
 @pytest.mark.parametrize("changes,error", [
     ({"holder": "0x0000000000000000000000000000000000000001"}, "holder mismatch"),
+    ({"subject_network": ""}, "invalid policy subject"),
+    ({"subject_network": "mainnet"}, "invalid policy subject"),
     ({"validator": ""}, "invalid policy subject"),
     ({"coverage_start_ts": 1000}, "invalid coverage dates"),
     ({"coverage_limit": 0}, "invalid coverage limit"),
@@ -207,6 +209,49 @@ def test_protocol_finality_requires_authority_and_event_is_single_use(direct_vm,
         contract.record_protocol_finality("clm_beta", protocol("clm_beta", "shared"))
     with direct_vm.expect_revert("finality already recorded"):
         contract.record_protocol_finality("clm_alpha", protocol("clm_alpha", "different"))
+
+
+def test_studionet_policy_accepts_matching_studionet_protocol_fact(direct_vm, direct_deploy, direct_alice):
+    contract = deploy_policy(direct_vm, direct_deploy, direct_alice, subject_network="studionet")
+    submit(direct_vm, contract, direct_alice)
+    promote(direct_vm, contract, direct_alice)
+    assert json.loads(contract.get_claim("clm_alpha"))["state"] == "UNDER_REVIEW"
+
+
+@pytest.mark.parametrize("network", ["testnetAsimov", "testnetBradbury"])
+def test_studionet_policy_rejects_cross_network_protocol_fact(direct_vm, direct_deploy, direct_alice, network):
+    contract = deploy_policy(direct_vm, direct_deploy, direct_alice, subject_network="studionet")
+    submit(direct_vm, contract, direct_alice)
+    direct_vm.sender = direct_alice
+    with direct_vm.expect_revert("invalid protocol evidence"):
+        contract.record_protocol_finality("clm_alpha", protocol("clm_alpha", network=network))
+    claim_state = json.loads(contract.get_claim("clm_alpha"))
+    assert claim_state["state"] == "AWAITING_FINALITY"
+    assert claim_state["underlying_finality"] == "PENDING"
+
+
+def test_cross_network_event_cannot_unlock_review(direct_vm, direct_deploy, direct_alice):
+    contract = deploy_policy(direct_vm, direct_deploy, direct_alice, subject_network="studionet")
+    submit(direct_vm, contract, direct_alice)
+    direct_vm.sender = direct_alice
+    with direct_vm.expect_revert("invalid protocol evidence"):
+        contract.record_protocol_finality("clm_alpha", protocol("clm_alpha", network="testnetAsimov"))
+    direct_vm.mock_llm(r".*Apply policy literally.*", json.dumps(verdict()))
+    with direct_vm.expect_revert("underlying finality required"):
+        contract.review_slashing_claim("clm_alpha")
+
+
+def test_appeal_and_finalization_cannot_bypass_network_binding(direct_vm, direct_deploy, direct_alice):
+    contract = deploy_policy(direct_vm, direct_deploy, direct_alice, subject_network="studionet")
+    submit(direct_vm, contract, direct_alice)
+    direct_vm.sender = direct_alice
+    with direct_vm.expect_revert("invalid protocol evidence"):
+        contract.record_protocol_finality("clm_alpha", protocol("clm_alpha", network="testnetBradbury"))
+    with direct_vm.expect_revert("invalid appeal"):
+        contract.record_appeal("clm_alpha", "Material new evidence for this claim.", evidence("clm_alpha", "appeal-network"))
+    with direct_vm.expect_revert("cannot finalize"):
+        contract.finalize_claim("clm_alpha")
+    assert contract.get_payout("clm_alpha") == 0
 
 
 @pytest.mark.parametrize("changes", [

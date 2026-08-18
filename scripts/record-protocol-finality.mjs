@@ -13,6 +13,7 @@ if(!address)throw Error('Set SLAIV_CLAIMS_ADDRESS.');
 const cli=(args)=>execFileSync('npx',['--yes','genlayer@0.39.2',...args],{encoding:'utf8',stdio:['ignore','pipe','inherit']});
 const decode=output=>{const match=output.match(/Result:\s*\n([\s\S]*?)\n\n√/);if(!match)throw Error('Unable to parse GenLayer CLI result.');return JSON.parse(match[1]);};
 const claim=JSON.parse(decode(cli(['call',address,'get_claim','--args',claimId,'--rpc',rpc])));
+const policy=JSON.parse(decode(cli(['call',address,'get_policy','--args',claim.policy_id,'--rpc',rpc])));
 let record;
 if(template){
   const sourceUrl=template.replace('{claimId}',encodeURIComponent(claimId)); const origin=new URL(sourceUrl).origin;
@@ -25,6 +26,6 @@ if(template){
   if(!history.includes(eventId))throw Error('The supplied event ID was not found in official GenLayer validator history.');
   record={claim_id:claimId,validator:claim.validator,finality:'FINAL',observed_at_ts:Math.floor(Date.now()/1000),reference:`${rpc}/validator-history/${claim.validator}?event=${encodeURIComponent(eventId)}`,network:process.env.GENLAYER_NETWORK||process.env.NEXT_PUBLIC_GENLAYER_NETWORK||'studionet',event_id:eventId,official_history:history};
 }
-const evidence=await protocolEvidence(record,{claimId,validator:claim.validator});
+const evidence=await protocolEvidence(record,{claimId,validator:claim.validator,subjectNetwork:policy.subject_network});
 if(!dryRun)cli(['write',address,'record_protocol_finality','--args',claimId,JSON.stringify(evidence),'--rpc',rpc]);
 console.log(JSON.stringify({claimId,evidence},null,2));

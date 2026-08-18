@@ -1,7 +1,8 @@
 const stable=value=>Array.isArray(value)?value.map(stable):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,stable(value[key])])):value;
 
-export function validateProtocolRecord(record,{claimId,validator}){
+export function validateProtocolRecord(record,{claimId,validator,subjectNetwork}){
   if(!record||record.claim_id!==claimId||record.validator!==validator||record.finality!=='FINAL')throw Error('Authoritative source does not prove FINAL finality for this claim and validator.');
+  if(!subjectNetwork||record.network!==subjectNetwork)throw Error('Authoritative source network does not match the policy subject network.');
   if(!Number.isInteger(record.observed_at_ts)||record.observed_at_ts<=0)throw Error('Authoritative source record requires a positive observed_at_ts.');
   if(typeof record.event_id!=='string'||record.event_id.length<1)throw Error('Authoritative source record requires an event_id.');
   if(!['studionet','testnetAsimov','testnetBradbury'].includes(record.network))throw Error('Authoritative source record requires a supported network.');
