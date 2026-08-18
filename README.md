@@ -1,47 +1,61 @@
-# Slaiv
+# SLAIV
 
-Slaiv is a GenLayer-native, evidence-driven slashing coverage adjudication MVP. Native protocol evidence establishes an event, immutable policy terms establish coverage, GenLayer judges ambiguous evidence, and deterministic code produces a payout instruction.
+SLAIV is a GenLayer-native slashing-coverage adjudication protocol. It binds immutable coverage terms, separates claimant assertions from protocol facts, uses GenLayer consensus for semantic judgment, and applies deterministic settlement rules.
 
-## What it is not
+## Architecture
 
-Slaiv is not insurance, a promise of reimbursement, a validator slashing mechanism, a generic uptime monitor, or a centralized oracle. The browser begins in **DEMO / FIXTURE MODE** and enables writes only after it can read the configured contract on the selected network.
+```mermaid
+flowchart LR
+  A[Claimant assertion] --> C[Claim dossier]
+  B[Verified operator adapter] -->|PROTOCOL_FACT| C
+  C --> D[GenLayer semantic consensus]
+  D --> E[Deterministic verdict validation]
+  E --> F[Deterministic payout instruction]
+```
 
-## Architecture and boundary
+SLAIV separates protocol-fact attestation from consensus adjudication. Claimants cannot establish protocol finality, and the protocol authority cannot determine eligibility or payout. The authority is a narrow trusted adapter role; the design is not described as oracle-free.
 
-See [architecture](docs/ARCHITECTURE.md). The contract’s non-deterministic review must produce structured eligibility and `eligible_loss`; deterministic integer arithmetic then applies `eligible_loss - floor(eligible_loss * deductible_bps / 10000)`, capped by coverage limit. The UI never authoritatively calculates from documented loss.
+Deterministic code controls schemas, authorization, policy membership, bindings, finality, bounds, state transitions and payout arithmetic. GenLayer is necessary for semantic incident classification, exclusions, evidence interpretation and eligible-loss judgment. An uncovered event may be truthfully classified and denied, but can never be approved or paid.
 
-## Contract API
+## State machine
 
-`contracts/SlaivClaims.py` exposes policy, claim, claimant-evidence, adapter-finality, review, appeal, finalization and read methods. It uses GenLayer’s Equivalence Principle boundary for review and does not transfer arbitrary value from free-form text.
+```mermaid
+stateDiagram-v2
+  [*] --> AWAITING_FINALITY
+  AWAITING_FINALITY --> UNDER_REVIEW: verified adapter fact
+  UNDER_REVIEW --> APPROVED
+  UNDER_REVIEW --> PARTIALLY_APPROVED
+  UNDER_REVIEW --> DENIED
+  UNDER_REVIEW --> UNRESOLVED
+  PARTIALLY_APPROVED --> APPEALED
+  DENIED --> APPEALED
+  UNRESOLVED --> APPEALED
+  APPROVED --> FINAL
+  PARTIALLY_APPROVED --> FINAL
+  DENIED --> FINAL
+```
 
-## Provenance and finality
+The browser uses an injected wallet through `genlayer-js@1.1.8`, waits for transaction finality, verifies successful GenVM execution, and refreshes authoritative contract state. It never manufactures protocol facts; authority operations use [`scripts/record-protocol-finality.mjs`](scripts/record-protocol-finality.mjs).
 
-Claimants may add only `CLAIMANT_ASSERTION` evidence. Only the narrowly scoped `protocol_authority` adapter role can append a normalized `PROTOCOL_FACT` and move a claim from `AWAITING_FINALITY` to `UNDER_REVIEW`; it cannot adjudicate or set payout. The adapter must independently fetch and retain the referenced authoritative record before sending that transaction. Underlying slash finality is distinct from GenLayer transaction finality; pending underlying finality blocks review and payout. “Commitment” fields are correlation labels, not cryptographic proof claims.
+## Current release
 
-The operator workflow, required source schema, allowlist and authority rotation are documented in [the protocol adapter guide](docs/PROTOCOL_ADAPTER.md).
+- Studionet contract: `0x8B1Db5604D2dDDa6741fB9C7168EC7fA468FD440`
+- Deployment tx: `0xa9faac339e157bf428633d807906a033d830f2e17a4050c52f6b1b1832ef477a`
+- Contract source commit: `4e53e9ba210db7b0bd90635cd6ae037d9e574da5`
+- Contract SHA-256: `afde26ecf341664241c76d9d6ade399beb6365b4c17a70b6a1f37ae111032e96`
+- Direct Mode: 60 passed
+- Frontend tests: 22 passed
+- Source match and preflight: PASS
 
-## State machine and appeals
+See [the reviewer dossier](SUBMISSION_READINESS.md), [deployment record](docs/DEPLOYMENT.md), [security boundaries](docs/SECURITY.md), and [protocol adapter guide](docs/PROTOCOL_ADAPTER.md).
 
-Claims follow explicit states: DRAFT → SUBMITTED → EVIDENCE_PENDING/AWAITING_FINALITY/UNDER_REVIEW → APPROVED/PARTIALLY_APPROVED/DENIED/UNRESOLVED → APPEALED/FINAL. Appeals require the claimant and material new evidence. See [demo guide](docs/DEMO.md).
-
-## Security
-
-See [security boundaries](docs/SECURITY.md). Slaiv validates bounded schemas with Zod, canonicalizes structured input, enforces authorization/duplicate/transition checks in its deterministic reference engine, and uses integer units for payouts.
-
-## Local setup and validation
+## Verify locally
 
 ```bash
 npm install
+npm test
 npm run lint
 npm run typecheck
-npm test
 npm run build
-wsl bash -lc 'cd /home/imani/slaivdirect && .venv/bin/python -m pytest tests/direct -v'
-npm run dev
+python scripts/preflight.py
 ```
-
-Configure only public deployment values in `.env` based on `.env.example`. The project intentionally has no hosted CI workflow; run the validation commands locally before release.
-
-## Deployment limitation
-
-Current hardened Studionet release: `0xAcf34B0F9d40f7060E370577689AF5935a215dD6` (deployment transaction `0xde7e9cfe607c4c2a3b7f19bb3f018c8e45736a32c3377e60676182b16cbe931c`). See [submission readiness](SUBMISSION_READINESS.md) for the exact source hash, authority boundary, Direct Mode coverage, source match, and documented external finality limitation.
