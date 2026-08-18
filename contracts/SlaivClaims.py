@@ -17,6 +17,7 @@ class SlaivClaims(gl.Contract):
     appeals: TreeMap[str, str]
     effective_reviews: TreeMap[str, str]
     claim_evidence: TreeMap[str, str]
+    policy_ids: str
     claim_ids: str
     policy_claim_ids: TreeMap[str, str]
     consumed_protocol_events: TreeMap[str, str]
@@ -35,6 +36,7 @@ class SlaivClaims(gl.Contract):
         self.authority_admin = gl.message.sender_address
         self.protocol_authority = gl.message.sender_address
         self.pending_protocol_authority = gl.message.sender_address
+        self.policy_ids = "[]"
         self.claim_ids = "[]"
 
     def _load(self, records: TreeMap[str, str], key: str) -> dict:
@@ -82,7 +84,7 @@ class SlaivClaims(gl.Contract):
         # cryptographic proof.  The canonical stored JSON is authoritative.
         p["policy_commitment"] = policy_commitment
         p["active"] = True; p["created_by"] = self._sender(); self._store(self.policies, policy_id, p)
-        owner = self.user_policies.get(self._sender(), "[]"); self.user_policies[self._sender()] = json.dumps(json.loads(owner) + [policy_id]); self.policy_count += 1
+        owner = self.user_policies.get(self._sender(), "[]"); self.user_policies[self._sender()] = json.dumps(json.loads(owner) + [policy_id]); self.policy_ids = json.dumps(self._ids(self.policy_ids) + [policy_id]); self.policy_count += 1
     @gl.public.write
     def submit_claim(self, claim_id: str, policy_id: str, claim_json: dict, evidence_commitment: str) -> None:
         if self.claims.get(claim_id, "") != "": raise Exception("duplicate claim")
@@ -140,7 +142,7 @@ class SlaivClaims(gl.Contract):
         ids = [x.get("evidence_id") for x in evidence]
         base = isinstance(v, dict) and v.get("eligibility") in ("APPROVED","PARTIALLY_APPROVED","DENIED","UNRESOLVED") and v.get("incident_class") in EVENTS and v.get("incident_class") in p["covered_events"] and v.get("claim_id") == c["claim_id"] and v.get("policy_id") == c["policy_id"] and str(v.get("validator")) == str(c["validator"]) and isinstance(v.get("slash_final"), bool) and isinstance(v.get("covered_event"), bool) and isinstance(v.get("exclusion_triggered"), bool) and isinstance(v.get("eligible_loss"), int) and 0 <= v["eligible_loss"] <= c["documented_loss"] and isinstance(v.get("confidence"), (int,float)) and 0 <= v["confidence"] <= 1 and isinstance(v.get("supported_evidence_ids"), list) and len(v["supported_evidence_ids"]) > 0 and all(x in ids for x in v["supported_evidence_ids"]) and isinstance(v.get("reasoning_summary"), str) and len(v["reasoning_summary"]) <= 2000
         if not base: return False
-        if v["eligibility"] == "DENIED": return v["eligible_loss"] == 0
+        if v["eligibility"] in ("DENIED", "UNRESOLVED"): return v["eligible_loss"] == 0
         return v["slash_final"] and v["covered_event"] and not v["exclusion_triggered"]
     @gl.public.write
     def review_slashing_claim(self, claim_id: str) -> None:
@@ -155,7 +157,7 @@ class SlaivClaims(gl.Contract):
             own = leader(); lead = result.calldata
             return self._valid_verdict(lead, c, p, evidence) and self._valid_verdict(own, c, p, evidence) and all(lead[k] == own[k] for k in ("eligibility","incident_class","claim_id","policy_id","validator","slash_final","covered_event","exclusion_triggered","eligible_loss","supported_evidence_ids"))
         v = gl.vm.run_nondet_unsafe(leader, validator)
-        if not self._valid_verdict(v, c, p, evidence) or not v["slash_final"]: raise Exception("invalid verdict")
+        if not self._valid_verdict(v, c, p, evidence): raise Exception("invalid verdict")
         c["state"] = v["eligibility"]; self._store(self.reviews, claim_id, v); self._store(self.effective_reviews, claim_id, v); self._store(self.claims, claim_id, c)
     @gl.public.write
     def finalize_claim(self, claim_id: str) -> None:
@@ -206,6 +208,8 @@ class SlaivClaims(gl.Contract):
     def get_payout(self, claim_id: str) -> u256: return self.payouts.get(claim_id, u256(0))
     @gl.public.view
     def get_user_policies(self, user: Address) -> str: return self.user_policies.get(str(user).lower(), "[]")
+    @gl.public.view
+    def list_policy_ids(self, offset: int, limit: int) -> str: return self._page(self.policy_ids, offset, limit)
     @gl.public.view
     def list_claim_ids(self, offset: int, limit: int) -> str: return self._page(self.claim_ids, offset, limit)
     @gl.public.view

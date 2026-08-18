@@ -23,7 +23,7 @@ if(template){
   if(!eventId)throw Error('Official CLI mode requires --event-id. Refusing to infer a slash from validator history.');
   const history=cli(['staking','validator-history',claim.validator,'--all','--rpc',rpc]);
   if(!history.includes(eventId))throw Error('The supplied event ID was not found in official GenLayer validator history.');
-  record={claim_id:claimId,validator:claim.validator,finality:'FINAL',observed_at_ts:Math.floor(Date.now()/1000),reference:`${rpc}/validator-history/${claim.validator}?event=${encodeURIComponent(eventId)}`,event_id:eventId,official_history:history};
+  record={claim_id:claimId,validator:claim.validator,finality:'FINAL',observed_at_ts:Math.floor(Date.now()/1000),reference:`${rpc}/validator-history/${claim.validator}?event=${encodeURIComponent(eventId)}`,network:process.env.VITE_GENLAYER_NETWORK||'studionet',event_id:eventId,official_history:history};
 }
 const evidence=await protocolEvidence(record,{claimId,validator:claim.validator});
 if(!dryRun)cli(['write',address,'record_protocol_finality','--args',claimId,JSON.stringify(evidence),'--rpc',rpc]);
