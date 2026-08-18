@@ -1,0 +1,3 @@
+export async function sha256(value){const bytes=new TextEncoder().encode(value);const result=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(result)].map(byte=>byte.toString(16).padStart(2,'0')).join('')}
+export const newId=prefix=>`${prefix}_${crypto.randomUUID().replaceAll('-','').slice(0,24)}`;
+export async function evidenceFrom(form,claimId,kind='CLAIMANT_ASSERTION'){const data=new FormData(form);return {claim_id:claimId,evidence_id:data.get('evidenceId')||newId('evd'),kind,source:data.get('source'),reference:data.get('reference'),content_hash:await sha256(String(data.get('content')||'')),submitted_at:Math.floor(Date.now()/1000)}}

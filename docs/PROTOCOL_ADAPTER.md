@@ -5,8 +5,9 @@ The browser never decides finality. By default, the operator adapter queries off
 Configure the operator shell (not the browser build) with:
 
 ```bash
-VITE_SLAIV_CLAIMS_ADDRESS=0x...
-VITE_GENLAYER_RPC_URL=https://studio.genlayer.com/api
+SLAIV_CLAIMS_ADDRESS=0x8B1Db5604D2dDDa6741fB9C7168EC7fA468FD440
+GENLAYER_NETWORK=studionet
+GENLAYER_RPC_URL=https://studio.genlayer.com/api
 // Official GenLayer CLI mode
 npm run adapter:finality -- --claim-id clm_example --event-id authoritative-event-id --dry-run
 npm run adapter:finality -- --claim-id clm_example --event-id authoritative-event-id

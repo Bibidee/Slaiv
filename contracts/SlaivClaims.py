@@ -140,10 +140,13 @@ class SlaivClaims(gl.Contract):
         return json.dumps({"admin":str(self.authority_admin).lower(),"authority":str(self.protocol_authority).lower(),"pending":str(self.pending_protocol_authority).lower()})
     def _valid_verdict(self, v: dict, c: dict, p: dict, evidence: list) -> bool:
         ids = [x.get("evidence_id") for x in evidence]
-        base = isinstance(v, dict) and v.get("eligibility") in ("APPROVED","PARTIALLY_APPROVED","DENIED","UNRESOLVED") and v.get("incident_class") in EVENTS and v.get("incident_class") in p["covered_events"] and v.get("claim_id") == c["claim_id"] and v.get("policy_id") == c["policy_id"] and str(v.get("validator")) == str(c["validator"]) and isinstance(v.get("slash_final"), bool) and isinstance(v.get("covered_event"), bool) and isinstance(v.get("exclusion_triggered"), bool) and isinstance(v.get("eligible_loss"), int) and 0 <= v["eligible_loss"] <= c["documented_loss"] and isinstance(v.get("confidence"), (int,float)) and 0 <= v["confidence"] <= 1 and isinstance(v.get("supported_evidence_ids"), list) and len(v["supported_evidence_ids"]) > 0 and all(x in ids for x in v["supported_evidence_ids"]) and isinstance(v.get("reasoning_summary"), str) and len(v["reasoning_summary"]) <= 2000
+        base = isinstance(v, dict) and v.get("eligibility") in ("APPROVED","PARTIALLY_APPROVED","DENIED","UNRESOLVED") and v.get("incident_class") in EVENTS and v.get("claim_id") == c["claim_id"] and v.get("policy_id") == c["policy_id"] and str(v.get("validator")) == str(c["validator"]) and isinstance(v.get("slash_final"), bool) and isinstance(v.get("covered_event"), bool) and isinstance(v.get("exclusion_triggered"), bool) and isinstance(v.get("eligible_loss"), int) and 0 <= v["eligible_loss"] <= c["documented_loss"] and isinstance(v.get("confidence"), (int,float)) and 0 <= v["confidence"] <= 1 and isinstance(v.get("supported_evidence_ids"), list) and len(v["supported_evidence_ids"]) > 0 and all(x in ids for x in v["supported_evidence_ids"]) and isinstance(v.get("reasoning_summary"), str) and len(v["reasoning_summary"]) <= 2000
         if not base: return False
-        if v["eligibility"] in ("DENIED", "UNRESOLVED"): return v["eligible_loss"] == 0
-        return v["slash_final"] and v["covered_event"] and not v["exclusion_triggered"]
+        covered = v["incident_class"] in p["covered_events"]
+        if v["covered_event"] != covered: return False
+        if v["eligibility"] == "UNRESOLVED": return v["eligible_loss"] == 0
+        if v["eligibility"] == "DENIED": return v["eligible_loss"] == 0 and (not v["slash_final"] or not covered or v["exclusion_triggered"])
+        return covered and v["slash_final"] and v["covered_event"] and not v["exclusion_triggered"] and v["eligible_loss"] > 0
     @gl.public.write
     def review_slashing_claim(self, claim_id: str) -> None:
         c = self._load(self.claims, claim_id)

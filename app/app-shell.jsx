@@ -1,0 +1,9 @@
+'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useState } from 'react';
+import { CONTRACT_ADDRESS, NETWORK, RELEASE } from './lib/genlayer';
+import { useWallet } from './wallet-provider';
+const links=[['Coverage','/coverage'],['My coverage','/dashboard'],['Evidence','/evidence'],['Adjudication','/docs/adjudication']];
+const short=value=>value?`${value.slice(0,6)}…${value.slice(-4)}`:'';
+export function AppShell({children}){const path=usePathname(),wallet=useWallet(),[localError,setLocalError]=useState('');const connect=async()=>{setLocalError('');try{await wallet.connect()}catch(e){setLocalError(e instanceof Error?e.message:'Wallet connection failed.')}};return <><header className="site-header"><Link href="/" className="wordmark"><i>SL</i>SLAIV</Link><nav aria-label="Primary navigation">{links.map(([label,href])=><Link key={href} className={path===href||path.startsWith(`${href}/`)?'active':''} href={href}>{label}</Link>)}</nav><div className="wallet-slot">{wallet.address?<><Link href="/account" className="wallet-address" title={wallet.address}>{short(wallet.address)}</Link><button className="disconnect" onClick={wallet.disconnect}>Disconnect</button></>:<button className="button neutral" disabled={wallet.status==='connecting'} onClick={()=>void connect()}>{wallet.status==='connecting'?'Connecting…':'Connect wallet'}</button>}</div></header><div className="network-strip"><span><i/> {NETWORK.toUpperCase()} · {CONTRACT_ADDRESS?short(CONTRACT_ADDRESS):'CONTRACT UNCONFIGURED'}</span><span>RELEASE {RELEASE.slice(0,12)}</span></div>{wallet.error||localError?<p className="wallet-error" role="alert">{wallet.error||localError}</p>:null}{children}<footer><span>SLAIV / GENLAYER</span><span>Evidence → Judgment → Payout</span><span>Contract state is authoritative</span></footer></>}

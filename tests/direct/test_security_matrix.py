@@ -228,7 +228,7 @@ def test_review_rejects_invalid_or_uncovered_consensus(direct_vm, direct_deploy,
 def test_review_denied_and_consensus_disagreement(direct_vm, direct_deploy, direct_alice):
     contract = deploy_policy(direct_vm, direct_deploy, direct_alice)
     submit(direct_vm, contract, direct_alice); promote(direct_vm, contract, direct_alice)
-    denied = verdict(eligibility="DENIED", eligible_loss=0, slash_final=False, covered_event=False, exclusion_triggered=True)
+    denied = verdict(eligibility="DENIED", eligible_loss=0, slash_final=False, covered_event=True, exclusion_triggered=True)
     direct_vm.mock_llm(r".*Apply policy literally.*", json.dumps(denied))
     contract.review_slashing_claim("clm_alpha")
     assert json.loads(contract.get_claim("clm_alpha"))["state"] == "DENIED"
@@ -237,6 +237,39 @@ def test_review_denied_and_consensus_disagreement(direct_vm, direct_deploy, dire
 
     direct_vm.clear_mocks(); direct_vm.mock_llm(r".*Apply policy literally.*", json.dumps(verdict()))
     assert direct_vm.run_validator() is False
+
+
+def test_uncovered_event_is_truthfully_classified_and_denied(direct_vm, direct_deploy, direct_alice):
+    contract = deploy_policy(direct_vm, direct_deploy, direct_alice)
+    submit(direct_vm, contract, direct_alice); promote(direct_vm, contract, direct_alice)
+    denied = verdict(eligibility="DENIED", incident_class="MISSED_APPEAL_WINDOW", covered_event=False, eligible_loss=0)
+    direct_vm.mock_llm(r".*Apply policy literally.*", json.dumps(denied))
+    contract.review_slashing_claim("clm_alpha")
+    assert json.loads(contract.get_claim("clm_alpha"))["state"] == "DENIED"
+    contract.finalize_claim("clm_alpha")
+    assert contract.get_payout("clm_alpha") == 0
+
+
+@pytest.mark.parametrize("eligibility", ["APPROVED", "PARTIALLY_APPROVED"])
+def test_uncovered_event_cannot_approve(direct_vm, direct_deploy, direct_alice, eligibility):
+    contract = deploy_policy(direct_vm, direct_deploy, direct_alice)
+    submit(direct_vm, contract, direct_alice); promote(direct_vm, contract, direct_alice)
+    invalid = verdict(eligibility=eligibility, incident_class="MISSED_APPEAL_WINDOW", covered_event=False)
+    direct_vm.mock_llm(r".*Apply policy literally.*", json.dumps(invalid))
+    with direct_vm.expect_revert("invalid verdict"):
+        contract.review_slashing_claim("clm_alpha")
+
+
+def test_appeal_cannot_overturn_uncovered_event_into_approval(direct_vm, direct_deploy, direct_alice):
+    contract = deploy_policy(direct_vm, direct_deploy, direct_alice)
+    submit(direct_vm, contract, direct_alice); promote(direct_vm, contract, direct_alice)
+    denied = verdict(eligibility="DENIED", incident_class="MISSED_APPEAL_WINDOW", covered_event=False, eligible_loss=0)
+    direct_vm.mock_llm(r".*Apply policy literally.*", json.dumps(denied)); contract.review_slashing_claim("clm_alpha")
+    contract.record_appeal("clm_alpha", "Material evidence requests review of the event classification.", evidence("clm_alpha", "appeal-uncovered"))
+    replacement = verdict(eligibility="APPROVED", incident_class="MISSED_APPEAL_WINDOW", covered_event=False, supported_evidence_ids=["protocol-evt-1", "appeal-uncovered"])
+    direct_vm.clear_mocks(); direct_vm.mock_llm(r".*Return JSON only with disposition.*", json.dumps({"disposition":"OVERTURN","verdict":replacement}))
+    with direct_vm.expect_revert("invalid appeal verdict"):
+        contract.review_appeal("clm_alpha")
 
 
 def test_finalize_applies_deductible_cap_and_terminal_state(direct_vm, direct_deploy, direct_alice):
