@@ -1,6 +1,7 @@
 import './globals.css';
 import './live.css';
 import './fonts.css';
+import './release.css';
 import '@fontsource/public-sans/400.css';
 import '@fontsource/public-sans/600.css';
 import '@fontsource/fraunces/500.css';
