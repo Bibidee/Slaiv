@@ -7,3 +7,4 @@ dist/
 !.env.example
 .venv/
 __pycache__/
+.vercel
