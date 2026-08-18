@@ -4,12 +4,16 @@ import { allowedActions } from '../app/lib/actions.js';
 import { loadClaimDossier } from '../app/lib/genlayer.js';
 
 describe('release frontend boundaries',()=>{
-  it('binds and displays the policy subject network',async()=>{
+  it('binds the configured network internally and displays it as coverage network',async()=>{
     const create=await readFile(new URL('../app/coverage/new/page.jsx',import.meta.url),'utf8');
     const detail=await readFile(new URL('../app/coverage/[id]/page.jsx',import.meta.url),'utf8');
     expect(create).toContain('subject_network');
-    expect(create).toContain('subjectNetwork');
+    expect(create).toContain('subject_network:NETWORK');
+    expect(create).not.toContain('name="subjectNetwork"');
+    expect(create).not.toContain('Testnet Asimov');
+    expect(create).not.toContain('Testnet Bradbury');
     expect(detail).toContain('p.subject_network');
+    expect(detail).toContain('Coverage network');
   });
   it('resolves the dossier policy from claim.policy_id, never claim ID',async()=>{
     const calls=[];
