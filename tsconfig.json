@@ -1,1 +1,37 @@
-{"compilerOptions":{"allowJs":true,"checkJs":false,"noEmit":true,"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","skipLibCheck":true,"lib":["ES2022","DOM"]},"include":["src/**/*.js","tests/**/*.js"]}
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "skipLibCheck": true,
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "strict": false,
+    "incremental": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "app/**/*.js",
+    "app/**/*.jsx",
+    "src/**/*.js",
+    "tests/**/*.js",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
