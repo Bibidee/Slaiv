@@ -1,7 +1,54 @@
 'use client';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { injectedClient } from './lib/genlayer';
+
 const WalletContext=createContext(null);
 const first=value=>Array.isArray(value)&&typeof value[0]==='string'?value[0]:null;
-export function WalletProvider({children}){const [address,setAddress]=useState(null),[status,setStatus]=useState('disconnected'),[error,setError]=useState('');const clear=useCallback(()=>{setAddress(null);setStatus('disconnected')},[]);const sync=useCallback(async()=>{if(!window.ethereum)return clear();try{const account=first(await window.ethereum.request({method:'eth_accounts'}));if(account){setAddress(account);setStatus('connected')}else clear()}catch(e){clear();setError(e instanceof Error?e.message:'Unable to read injected wallet.')}},[clear]);const connect=useCallback(async()=>{setStatus('connecting');setError('');try{if(!window.ethereum)throw new Error('No injected wallet found. Open SLAIV inside your wallet browser or install and unlock a compatible wallet.');const account=first(await window.ethereum.request({method:'eth_requestAccounts'}));if(!account)throw new Error('Wallet returned no account. Unlock it and approve the connection.');await injectedClient(account);setAddress(account);setStatus('connected')}catch(e){clear();setError(e instanceof Error?e.message:'Wallet connection failed.');throw e}},[clear]);const disconnect=useCallback(()=>{clear();setError('')},[clear]);const getWriteClient=useCallback(async()=>{if(!address)throw new Error('Connect the injected wallet before signing.');return injectedClient(address)},[address]);useEffect(()=>{void sync();const provider=window.ethereum;if(!provider)return;const accountsChanged=value=>{const account=first(value);if(account){setAddress(account);setStatus('connected')}else clear()};const disconnected=()=>clear();const chainChanged=()=>void sync();provider.on?.('accountsChanged',accountsChanged);provider.on?.('disconnect',disconnected);provider.on?.('chainChanged',chainChanged);const visible=()=>{if(document.visibilityState==='visible')void sync()};window.addEventListener('focus',sync);window.addEventListener('pageshow',sync);document.addEventListener('visibilitychange',visible);return()=>{provider.removeListener?.('accountsChanged',accountsChanged);provider.removeListener?.('disconnect',disconnected);provider.removeListener?.('chainChanged',chainChanged);window.removeEventListener('focus',sync);window.removeEventListener('pageshow',sync);document.removeEventListener('visibilitychange',visible)}},[clear,sync]);const value=useMemo(()=>({address,status,error,connect,disconnect,getWriteClient,refresh:sync}),[address,status,error,connect,disconnect,getWriteClient,sync]);return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>}
+export const disconnectedWallet=()=>({address:null,status:'disconnected',error:''});
+export const connectedWallet=address=>({address,status:'connected',error:''});
+export const failedWallet=error=>({address:null,status:'disconnected',error});
+export const walletFromAccounts=value=>{const account=first(value);return account?connectedWallet(account):disconnectedWallet()};
+
+export function WalletProvider({children}){
+  const [wallet,setWallet]=useState(disconnectedWallet);
+  const operation=useRef(0);
+  const disconnect=useCallback(()=>{operation.current+=1;setWallet(disconnectedWallet())},[]);
+  const sync=useCallback(async()=>{
+    const current=++operation.current;
+    if(!window.ethereum){if(current===operation.current)setWallet(disconnectedWallet());return}
+    try{
+      const next=walletFromAccounts(await window.ethereum.request({method:'eth_accounts'}));
+      if(current===operation.current)setWallet(next);
+    }catch(e){
+      if(current===operation.current)setWallet(failedWallet(e instanceof Error?e.message:'Unable to read injected wallet.'));
+    }
+  },[]);
+  const connect=useCallback(async()=>{
+    const current=++operation.current;
+    setWallet(previous=>({...previous,status:'connecting',error:''}));
+    try{
+      if(!window.ethereum)throw new Error('No injected wallet found. Open SLAIV inside your wallet browser or install and unlock a compatible wallet.');
+      const account=first(await window.ethereum.request({method:'eth_requestAccounts'}));
+      if(!account)throw new Error('Wallet returned no account. Unlock it and approve the connection.');
+      await injectedClient(account);
+      if(current===operation.current)setWallet(connectedWallet(account));
+    }catch(e){
+      if(current===operation.current)setWallet(failedWallet(e instanceof Error?e.message:'Wallet connection failed.'));
+    }
+  },[]);
+  const getWriteClient=useCallback(async()=>{if(!wallet.address)throw new Error('Connect the injected wallet before signing.');return injectedClient(wallet.address)},[wallet.address]);
+  useEffect(()=>{
+    void sync();
+    const provider=window.ethereum;if(!provider)return;
+    const accountsChanged=value=>{operation.current+=1;setWallet(walletFromAccounts(value))};
+    const disconnected=()=>disconnect();
+    const chainChanged=()=>void sync();
+    provider.on?.('accountsChanged',accountsChanged);provider.on?.('disconnect',disconnected);provider.on?.('chainChanged',chainChanged);
+    const visible=()=>{if(document.visibilityState==='visible')void sync()};
+    window.addEventListener('focus',sync);window.addEventListener('pageshow',sync);document.addEventListener('visibilitychange',visible);
+    return()=>{provider.removeListener?.('accountsChanged',accountsChanged);provider.removeListener?.('disconnect',disconnected);provider.removeListener?.('chainChanged',chainChanged);window.removeEventListener('focus',sync);window.removeEventListener('pageshow',sync);document.removeEventListener('visibilitychange',visible)};
+  },[disconnect,sync]);
+  const value=useMemo(()=>({...wallet,connect,disconnect,getWriteClient,refresh:sync}),[wallet,connect,disconnect,getWriteClient,sync]);
+  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
+}
 export function useWallet(){const wallet=useContext(WalletContext);if(!wallet)throw new Error('WalletProvider missing.');return wallet}
