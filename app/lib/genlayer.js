@@ -11,7 +11,35 @@ export const RELEASE=process.env.NEXT_PUBLIC_SLAIV_RELEASE||'unreleased';
 export const CHAIN=chains[NETWORK];
 export function ensureDeployment(){if(!CHAIN)throw new Error('Unsupported GenLayer network configuration.');if(!CONTRACT_ADDRESS)throw new Error('SLAIV contract is not configured.');return CONTRACT_ADDRESS}
 export function readClient(){return createClient({chain:CHAIN,endpoint:ENDPOINT,account:createAccount()})}
-export async function injectedClient(address,provider){if(!provider||typeof provider.request!=='function')throw new Error('The selected injected wallet is unavailable. Select the wallet again and reconnect.');const client=createClient({chain:CHAIN,endpoint:ENDPOINT,account:address,provider});await client.connect(NETWORK);return client}
+const providerErrorCode=error=>error&&typeof error==='object'?(error.code??error.data?.originalError?.code??error.data?.code):undefined;
+const providerErrorMessage=error=>[error?.shortMessage,error?.data?.message,error?.error?.message,error?.cause?.message,error?.message].find(value=>typeof value==='string'&&value.trim())||'';
+export async function ensureInjectedNetwork(provider){
+  if(!provider||typeof provider.request!=='function')throw new Error('The selected injected wallet is unavailable. Select the wallet again and reconnect.');
+  if(!CHAIN)throw new Error('Unsupported GenLayer network configuration.');
+  const chainId=`0x${CHAIN.id.toString(16)}`;
+  const same=value=>String(value||'').toLowerCase()===chainId.toLowerCase();
+  const current=await provider.request({method:'eth_chainId'});
+  if(same(current))return chainId;
+  const explorer=CHAIN.blockExplorers?.default?.url;
+  const chainParams={chainId,chainName:CHAIN.name,rpcUrls:[ENDPOINT],nativeCurrency:CHAIN.nativeCurrency,...(explorer?{blockExplorerUrls:[explorer]}:{})};
+  try{
+    await provider.request({method:'wallet_switchEthereumChain',params:[{chainId}]});
+  }catch(error){
+    const code=providerErrorCode(error),message=providerErrorMessage(error);
+    const missing=code===4902||/unknown chain|unrecognized chain|not added|does not exist/i.test(message);
+    if(!missing)throw error;
+    await provider.request({method:'wallet_addEthereumChain',params:[chainParams]});
+    await provider.request({method:'wallet_switchEthereumChain',params:[{chainId}]});
+  }
+  const selected=await provider.request({method:'eth_chainId'});
+  if(!same(selected))throw new Error(`Wallet did not switch to ${CHAIN.name}. Select GenLayer ${NETWORK} in your wallet and try again.`);
+  return chainId;
+}
+export async function injectedClient(address,provider){
+  if(!provider||typeof provider.request!=='function')throw new Error('The selected injected wallet is unavailable. Select the wallet again and reconnect.');
+  await ensureInjectedNetwork(provider);
+  return createClient({chain:CHAIN,endpoint:ENDPOINT,account:address,provider});
+}
 export async function read(functionName,args=[]){const value=await readClient().readContract({address:ensureDeployment(),functionName,args,stateStatus:'accepted'});return value}
 export async function write(client,functionName,args=[],value=0n,onStage=()=>{}){onStage('SIGNING');const hash=await client.writeContract({address:ensureDeployment(),functionName,args,value});onStage('FINALIZING',hash);const receipt=await readClient().waitForTransactionReceipt({hash,status:TransactionStatus.FINALIZED,interval:5000,retries:90});onStage('VERIFYING',hash);if(receipt.txExecutionResultName!==ExecutionResult.FINISHED_WITH_RETURN){const result=receipt.txExecutionResultName||receipt.txExecutionResult||'UNKNOWN';throw new Error(`Transaction finalized, but GenVM execution failed (${result}).`)}onStage('CONFIRMED',hash);return {hash,receipt}}
 export const parse=(value,fallback=null)=>{if(typeof value!=='string')return value??fallback;try{return JSON.parse(value)}catch{return fallback}};
