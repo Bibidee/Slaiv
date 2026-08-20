@@ -2,7 +2,7 @@ import json
 
 VALIDATOR = "0x1111111111111111111111111111111111111111"
 EVENT_ID = "0x" + "ab" * 32
-EVENT_URL = f"https://explorer-studio.genlayer.com/tx/{EVENT_ID}"
+RPC_URL = "https://studio.genlayer.com/api"
 
 
 def address(account):
@@ -38,27 +38,34 @@ def evidence(claim_id, evidence_id, kind="CLAIMANT_ASSERTION"):
     }
 
 
-def verified_protocol_result(event_id=EVENT_ID, **changes):
-    result = {
-        "verified": True,
-        "event_final": True,
-        "validator": VALIDATOR,
-        "network": "studionet",
-        "event_id": event_id,
-        "incident_class": "MISSED_EXECUTION_WINDOW",
-        "event_at_ts": 2,
-        "reasoning_summary": "Official GenLayer record matches the claim subject.",
+def rpc_tx(event_id=EVENT_ID, **changes):
+    """A transaction shaped like the real eth_getTransactionByHash response
+    observed against https://studio.genlayer.com/api, carrying a genuine
+    MISSED_EXECUTION_WINDOW signal for VALIDATOR (leader_timeout_validators
+    contains it)."""
+    tx = {
+        "hash": event_id,
+        "status": "FINALIZED",
+        "leader_timeout_validators": [VALIDATOR],
+        "appeal_leader_timeout": False,
+        "appeal_validators_timeout": False,
+        "appeal_failed": 0,
+        "rotation_count": 0,
+        "timestamp_awaiting_finalization": 2,
     }
-    result.update(changes)
-    return result
+    tx.update(changes)
+    return tx
 
 
-def mock_finality(direct_vm, result=None):
+def mock_rpc_response(direct_vm, body_json):
     direct_vm.mock_web(
-        r"explorer-studio\.genlayer\.com/tx/.*",
-        {"status": 200, "body": "Official GenLayer protocol event record", "method": "GET"},
+        r"studio\.genlayer\.com/api",
+        {"status": 200, "body": json.dumps(body_json), "method": "POST"},
     )
-    direct_vm.mock_llm(r".*Independently determine whether it explicitly proves a FINAL GenLayer protocol event.*", json.dumps(result or verified_protocol_result()))
+
+
+def mock_finality(direct_vm, tx=None):
+    mock_rpc_response(direct_vm, {"jsonrpc": "2.0", "result": tx if tx is not None else rpc_tx(), "id": 1})
 
 
 def create_claim(direct_vm, direct_deploy, owner, claim_id="clm_beta", policy_id="pol_alpha"):
@@ -87,7 +94,7 @@ def test_any_wallet_can_trigger_consensus_verified_protocol_finality(direct_vm, 
     c = create_claim(direct_vm, direct_deploy, direct_alice)
     mock_finality(direct_vm)
     direct_vm.sender = direct_bob
-    c.verify_protocol_finality("clm_beta", EVENT_ID, EVENT_URL)
+    c.verify_protocol_finality("clm_beta", EVENT_ID)
     claim = json.loads(c.get_claim("clm_beta"))
     facts = json.loads(c.get_evidence("clm_beta"))
     assert claim["state"] == "UNDER_REVIEW"
@@ -99,10 +106,10 @@ def test_any_wallet_can_trigger_consensus_verified_protocol_finality(direct_vm, 
 
 def test_caller_cannot_choose_protocol_outcome(direct_vm, direct_deploy, direct_alice, direct_bob):
     c = create_claim(direct_vm, direct_deploy, direct_alice)
-    mock_finality(direct_vm, verified_protocol_result(verified=False, event_final=False))
+    mock_finality(direct_vm, rpc_tx(status="PENDING", leader_timeout_validators=[]))
     direct_vm.sender = direct_bob
     with direct_vm.expect_revert("protocol finality not verified"):
-        c.verify_protocol_finality("clm_beta", EVENT_ID, EVENT_URL)
+        c.verify_protocol_finality("clm_beta", EVENT_ID)
     assert json.loads(c.get_claim("clm_beta"))["state"] == "AWAITING_FINALITY"
 
 
@@ -112,7 +119,7 @@ def test_full_permissionless_review_and_finalization_lifecycle(direct_vm, direct
     c.append_evidence("clm_full", claimant, claimant["content_hash"])
     mock_finality(direct_vm)
     direct_vm.sender = direct_bob
-    c.verify_protocol_finality("clm_full", EVENT_ID, EVENT_URL)
+    c.verify_protocol_finality("clm_full", EVENT_ID)
     protocol_id = "protocol-" + EVENT_ID[2:]
     verdict = {
         "eligibility": "APPROVED",
@@ -143,7 +150,7 @@ def test_identity_bound_appeal_remains_claimant_only(direct_vm, direct_deploy, d
     c = create_claim(direct_vm, direct_deploy, direct_alice)
     mock_finality(direct_vm)
     direct_vm.sender = direct_bob
-    c.verify_protocol_finality("clm_beta", EVENT_ID, EVENT_URL)
+    c.verify_protocol_finality("clm_beta", EVENT_ID)
     protocol_id = "protocol-" + EVENT_ID[2:]
     denied = {
         "eligibility": "DENIED", "incident_class": "MISSED_EXECUTION_WINDOW",

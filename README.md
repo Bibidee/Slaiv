@@ -40,7 +40,7 @@ stateDiagram-v2
   DENIED --> FINAL: claimant waiver, resolved appeal, or appeal-window expiry
 ```
 
-For protocol finality, the browser or CLI submits only a candidate GenLayer event/transaction ID and an official explorer record. The Intelligent Contract fetches that official source inside GenLayer non-deterministic execution; leader and validators independently derive the finality, validator, network, event class, event ID, and event time. State advances only when the verified result satisfies the immutable policy boundary.
+For protocol finality, the browser or CLI submits only a candidate GenLayer transaction hash -- no source URL. The Intelligent Contract resolves the official GenLayer node RPC endpoint for the policy's network itself and queries it inside GenLayer non-deterministic execution; leader and validators independently re-query it and deterministically derive the finality, validator, network, event class, event ID, and event time from its structured fields. State advances only when the verified result satisfies the immutable policy boundary. See `docs/PROTOCOL_ADAPTER.md` for the exact RPC method and per-network verification status.
 
 ## Permissionless v3 candidate
 
@@ -63,13 +63,7 @@ Any funded/configured GenLayer wallet may submit a candidate:
 npm run verify:finality -- --claim-id clm_... --event-id 0x<64-hex>
 ```
 
-Optionally supply an exact official explorer record:
-
-```bash
-npm run verify:finality -- --claim-id clm_... --event-id 0x<64-hex> --reference https://explorer-studio.genlayer.com/tx/0x<64-hex>
-```
-
-The CLI does not attest that the event is final. It only submits the candidate; the Intelligent Contract and GenLayer validators perform verification.
+The CLI does not attest that the event is final. It only submits the candidate; the Intelligent Contract and GenLayer validators perform verification against the official RPC.
 
 ## Verify locally
 

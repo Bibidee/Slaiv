@@ -26,8 +26,8 @@ Any wallet ──────────────┼→ appeal judgment / el
 
 Permissionless means that no privileged wallet controls protocol progress. A caller may trigger work but does not supply the truth that the contract stores:
 
-- `verify_protocol_finality` accepts only a candidate event ID and official explorer reference;
-- GenLayer consensus derives validator, network, event class, event timestamp and finality from the official source;
+- `verify_protocol_finality` accepts only a candidate GenLayer transaction hash -- no source URL, the contract resolves the official RPC endpoint itself from the policy's network;
+- GenLayer consensus deterministically derives validator identity, event class, event timestamp and finality from the structured fields of the official RPC's response (see `docs/PROTOCOL_ADAPTER.md`);
 - `review_slashing_claim` accepts only a claim ID, not an eligibility or payout;
 - `review_appeal` accepts only a claim ID, not a replacement verdict;
 - `finalize_claim` accepts only a claim ID and computes payout from stored state.

@@ -27,11 +27,11 @@ describe('permissionless release frontend boundaries',()=>{
   it('lets any connected wallet submit only a candidate protocol event for consensus verification',async()=>{
     const source=await readFile(new URL('../app/claims/[docket]/page.jsx',import.meta.url),'utf8');
     expect(source).toContain('verify_protocol_finality');
-    expect(source).toContain('GenLayer event / transaction ID');
-    expect(source).toContain('Official GenLayer explorer record');
-    expect(source).toContain('caller does not set finality or the outcome');
+    expect(source).toContain('GenLayer transaction hash');
+    expect(source).toContain('does not set finality, validator identity, or incident class');
     expect(source).not.toContain('record_protocol_finality');
     expect(source).not.toContain('get_protocol_authority');
+    expect(source).not.toContain('Official GenLayer explorer record');
     expect(source).not.toMatch(/evidenceFrom\([^)]*PROTOCOL_FACT/);
   });
 
