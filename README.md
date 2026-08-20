@@ -44,16 +44,10 @@ For protocol finality, the browser or CLI submits only a candidate GenLayer tran
 
 ## Permissionless v3 candidate
 
-Development is isolated on the `permissionless-v3` branch until contract tests, frontend tests, source checks, deployment, and a fresh live lifecycle are verified. **Do not treat the historical production address below as the v3 contract.**
+Development is isolated on the `permissionless-v3` branch (draft PR #5, not merged to `main`). A permissionless v3 contract has been deployed to Studionet and source-matched, but the public frontend still points at the historical authority-gated release below until this branch is reviewed and merged.
 
-Current historical production release:
-
-- Studionet contract: `0x7BCD17b76a9c6e3daA9f12a7b7E50Cfc83AF8eA0`
-- Deployment tx: `0x771f5ad3ac3111395761c008d7019ebe91e5f59991635343b3b793a3a1058fd4`
-- Frozen contract source commit: `edb48853c3f4de10c0b2bab2d766763bd8487162`
-- Contract SHA-256: `d00542cc83511cb595c9459fb74874e18b14908568c3b3b13cfa1a01abd8f943`
-
-Those values describe the previous authority-gated release only. The v3 deployment metadata must be filled in after a new permissionless contract is actually deployed and source-matched.
+- v3 Studionet contract (pending merge): `0x5E90423450c1a571f0434014aA03A3958887E437` -- see `docs/DEPLOYMENT.md` for the full record, source hash, and live fail-closed proof.
+- Current historical production release: Studionet contract `0x7BCD17b76a9c6e3daA9f12a7b7E50Cfc83AF8eA0`, deployment tx `0x771f5ad3ac3111395761c008d7019ebe91e5f59991635343b3b793a3a1058fd4`, frozen source commit `edb48853c3f4de10c0b2bab2d766763bd8487162`. This is the authority-gated v2 release and remains the live production contract until v3 is merged and switched over.
 
 ## Trigger finality verification from CLI
 
