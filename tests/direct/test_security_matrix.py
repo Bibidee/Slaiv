@@ -85,6 +85,15 @@ def test_public_source_evidence_is_permissionless_but_claimant_assertion_is_not(
     ("evt-not-a-hash", EVENT_URL),
     (EVENT_ID, "https://example.com/tx/" + EVENT_ID),
     (EVENT_ID, "https://explorer-studio.genlayer.com/tx/0x" + "cd" * 32),
+    # Adversarial reference-prefix bypass attempts (Phase 7 audit of
+    # _official_reference). All must be rejected before any nondet fetch.
+    (EVENT_ID, "http://explorer-studio.genlayer.com/tx/" + EVENT_ID),  # wrong scheme
+    (EVENT_ID, "https://explorer-studio.genlayer.com.evil.com/tx/" + EVENT_ID),  # suffix-domain trick
+    (EVENT_ID, "https://evil-explorer-studio.genlayer.com/tx/" + EVENT_ID),  # prefixed lookalike host
+    (EVENT_ID, "https://user@explorer-studio.genlayer.com/tx/" + EVENT_ID + "@evil.com/"),  # userinfo trick
+    (EVENT_ID, "https://explorer-studio.genlayer.com:8443/tx/" + EVENT_ID),  # non-default port before path
+    (EVENT_ID, "https://EXPLORER-STUDIO.GENLAYER.COM/tx/" + EVENT_ID),  # case bypass attempt
+    (EVENT_ID, "https://explorer-asimov.genlayer.com/tx/" + EVENT_ID),  # wrong-network explorer for studionet policy
 ])
 def test_finality_candidate_must_be_an_official_matching_event_reference(direct_vm, direct_deploy, direct_alice, direct_bob, event_id, url):
     c = create_claim(direct_vm, direct_deploy, direct_alice)
@@ -109,6 +118,24 @@ def test_consensus_verified_finality_fails_closed_on_mismatch(direct_vm, direct_
     with direct_vm.expect_revert("protocol finality not verified"):
         c.verify_protocol_finality("clm_beta", EVENT_ID, EVENT_URL)
     assert json.loads(c.get_claim("clm_beta"))["state"] == "AWAITING_FINALITY"
+
+
+def test_reference_pointing_at_a_different_official_tx_with_target_id_only_in_query_fails_closed(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """_official_reference only anchors origin + requires the event id to
+    appear somewhere in the URL string; it does not parse the URL path. A
+    reference for a genuinely different, official transaction that merely
+    carries the target event id in a query string therefore clears the
+    syntactic gate. Consensus must still reject it because the fetched
+    page/content will not actually describe that event id."""
+    other_tx = "0x" + "cd" * 32
+    decoy_reference = "https://explorer-studio.genlayer.com/tx/" + other_tx + "?evt=" + EVENT_ID
+    c = create_claim(direct_vm, direct_deploy, direct_alice)
+    # The mocked fetch returns a result describing the *other* tx, as the
+    # real page at that URL would -- not the target EVENT_ID.
+    mock_finality(direct_vm, verified_protocol_result(event_id=other_tx))
+    direct_vm.sender = direct_bob
+    with direct_vm.expect_revert("protocol finality not verified"):
+        c.verify_protocol_finality("clm_beta", EVENT_ID, decoy_reference)
 
 
 def test_protocol_validator_independently_refetches_and_can_disagree(direct_vm, direct_deploy, direct_alice, direct_bob):
