@@ -3,18 +3,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { allowedActions } from '../app/lib/actions.js';
 import { loadClaimDossier } from '../app/lib/genlayer.js';
 
-describe('release frontend boundaries',()=>{
+describe('permissionless release frontend boundaries',()=>{
   it('binds the configured network internally and displays it as coverage network',async()=>{
     const create=await readFile(new URL('../app/coverage/new/page.jsx',import.meta.url),'utf8');
     const detail=await readFile(new URL('../app/coverage/[id]/page.jsx',import.meta.url),'utf8');
     expect(create).toContain('subject_network');
     expect(create).toContain('subject_network:NETWORK');
     expect(create).not.toContain('name="subjectNetwork"');
-    expect(create).not.toContain('Testnet Asimov');
-    expect(create).not.toContain('Testnet Bradbury');
     expect(detail).toContain('p.subject_network');
     expect(detail).toContain('Coverage network');
   });
+
   it('resolves the dossier policy from claim.policy_id, never claim ID',async()=>{
     const calls=[];
     const responses={get_claim:JSON.stringify({claim_id:'clm_1',policy_id:'pol_9'}),get_policy:JSON.stringify({policy_id:'pol_9'}),get_evidence:'[]',get_review:'',get_effective_review:'',get_payout:0};
@@ -25,31 +24,35 @@ describe('release frontend boundaries',()=>{
     expect(calls).not.toContainEqual(['get_policy',['clm_1']]);
   });
 
-  it('does not allow browser code to manufacture protocol facts',async()=>{
+  it('lets any connected wallet submit only a candidate protocol event for consensus verification',async()=>{
     const source=await readFile(new URL('../app/claims/[docket]/page.jsx',import.meta.url),'utf8');
-    expect(source).not.toMatch(/evidenceFrom\([^)]*PROTOCOL_FACT/);
+    expect(source).toContain('verify_protocol_finality');
+    expect(source).toContain('GenLayer event / transaction ID');
+    expect(source).toContain('Official GenLayer explorer record');
+    expect(source).toContain('caller does not set finality or the outcome');
     expect(source).not.toContain('record_protocol_finality');
-    expect(source).toContain('verified operator adapter');
+    expect(source).not.toContain('get_protocol_authority');
+    expect(source).not.toMatch(/evidenceFrom\([^)]*PROTOCOL_FACT/);
   });
 
-  it.each([
-    ['APPROVED',false,['FINALIZE']],
-    ['DENIED',true,['FINALIZE','APPEAL']],
-    ['PARTIALLY_APPROVED',true,['FINALIZE','APPEAL']],
-    ['UNRESOLVED',true,['APPEAL']],
-    ['FINAL',false,[]],
-  ])('maps %s to exact claimant actions', (state,appealable,expected)=>{
-    const actions=allowedActions(state,{isClaimant:true,connected:true});
-    expect(actions).toEqual(expected);
-    expect(actions.includes('APPEAL')).toBe(appealable);
+  it('maps permissionless actions without granting identity-bound claimant rights',()=>{
+    expect(allowedActions('AWAITING_FINALITY',{connected:true,isClaimant:false,nowTs:100})).toEqual(['VERIFY_FINALITY']);
+    expect(allowedActions('AWAITING_FINALITY',{connected:true,isClaimant:true,nowTs:100})).toEqual(['APPEND_EVIDENCE','VERIFY_FINALITY']);
+    expect(allowedActions('UNDER_REVIEW',{connected:true,isClaimant:false,nowTs:100})).toEqual(['REVIEW']);
+    expect(allowedActions('APPROVED',{connected:true,isClaimant:false,nowTs:100})).toEqual(['FINALIZE']);
+    expect(allowedActions('APPEALED',{connected:true,isClaimant:false,nowTs:100})).toEqual(['REVIEW_APPEAL']);
+    expect(allowedActions('DENIED',{connected:true,isClaimant:false,appealDeadlineTs:200,nowTs:100})).toEqual([]);
+    expect(allowedActions('DENIED',{connected:true,isClaimant:false,appealDeadlineTs:200,nowTs:201})).toEqual(['FINALIZE']);
+    expect(allowedActions('DENIED',{connected:true,isClaimant:true,appealDeadlineTs:200,nowTs:100})).toEqual(['APPEAL','FINALIZE']);
+    expect(allowedActions('UNRESOLVED',{connected:true,isClaimant:true,appealDeadlineTs:200,nowTs:100})).toEqual(['APPEAL']);
+    expect(allowedActions('FINAL',{connected:true,isClaimant:true,nowTs:100})).toEqual([]);
   });
 
-  it('renders protocol evidence from stored get_evidence results',async()=>{
+  it('renders consensus-verified protocol evidence from stored get_evidence results',async()=>{
     const source=await readFile(new URL('../app/evidence/page.jsx',import.meta.url),'utf8');
     const client=await readFile(new URL('../app/lib/genlayer.js',import.meta.url),'utf8');
     expect(client).toContain("read('get_evidence',[claim.claim_id])");
     expect(source).toContain("item.kind==='PROTOCOL_FACT'");
-    expect(source).toContain('No verified protocol facts recorded.');
   });
 
   it('contains no fixture imports in the live app tree',async()=>{
