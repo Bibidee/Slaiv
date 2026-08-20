@@ -35,9 +35,16 @@ describe('permissionless release frontend boundaries',()=>{
     expect(source).not.toMatch(/evidenceFrom\([^)]*PROTOCOL_FACT/);
   });
 
+  it('exposes public-source evidence to any wallet while keeping claimant assertions identity-bound',async()=>{
+    const source=await readFile(new URL('../app/claims/[docket]/page.jsx',import.meta.url),'utf8');
+    expect(source).toContain("evidenceFrom(event.currentTarget,claim.claim_id,'PUBLIC_SOURCE')");
+    expect(source).toContain('Add claimant evidence');
+    expect(source).toContain('Add public-source evidence');
+  });
+
   it('maps permissionless actions without granting identity-bound claimant rights',()=>{
-    expect(allowedActions('AWAITING_FINALITY',{connected:true,isClaimant:false,nowTs:100})).toEqual(['VERIFY_FINALITY']);
-    expect(allowedActions('AWAITING_FINALITY',{connected:true,isClaimant:true,nowTs:100})).toEqual(['APPEND_EVIDENCE','VERIFY_FINALITY']);
+    expect(allowedActions('AWAITING_FINALITY',{connected:true,isClaimant:false,nowTs:100})).toEqual(['APPEND_PUBLIC_EVIDENCE','VERIFY_FINALITY']);
+    expect(allowedActions('AWAITING_FINALITY',{connected:true,isClaimant:true,nowTs:100})).toEqual(['APPEND_EVIDENCE','APPEND_PUBLIC_EVIDENCE','VERIFY_FINALITY']);
     expect(allowedActions('UNDER_REVIEW',{connected:true,isClaimant:false,nowTs:100})).toEqual(['REVIEW']);
     expect(allowedActions('APPROVED',{connected:true,isClaimant:false,nowTs:100})).toEqual(['FINALIZE']);
     expect(allowedActions('APPEALED',{connected:true,isClaimant:false,nowTs:100})).toEqual(['REVIEW_APPEAL']);
