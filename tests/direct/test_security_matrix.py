@@ -122,18 +122,31 @@ def test_protocol_validator_independently_refetches_and_can_disagree(direct_vm, 
     assert direct_vm.run_validator() is False
 
 
-def test_protocol_event_is_single_use(direct_vm, direct_deploy, direct_alice, direct_bob):
+def test_protocol_event_replay_is_scoped_per_policy(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    """A genuine slash event may support independent claims on separate
+    policies (e.g. two policyholders insured against the same validator),
+    but a single policy cannot reuse the same event across two of its own
+    claims."""
     direct_vm.sender = direct_alice
     c = direct_deploy("contracts/SlaivClaims.py")
-    c.create_policy("pol_a", policy(direct_alice,"pol_a"), "p")
-    c.create_policy("pol_b", policy(direct_alice,"pol_b"), "p")
-    for cid,pid in (("clm_a","pol_a"),("clm_b","pol_b")):
-        c.submit_claim(cid,pid,{"policy_id":pid,"claimant":address(direct_alice),"validator":VALIDATOR,"documented_loss":100,"incident_at_ts":2},"e")
-    promote(direct_vm,c,direct_bob,"clm_a")
+    c.create_policy("pol_a", policy(direct_alice, "pol_a"), "p")
+    c.create_policy("pol_b", policy(direct_alice, "pol_b"), "p")
+    for cid, pid in (("clm_a", "pol_a"), ("clm_b", "pol_b")):
+        c.submit_claim(cid, pid, {"policy_id": pid, "claimant": address(direct_alice), "validator": VALIDATOR, "documented_loss": 100, "incident_at_ts": 2}, "e")
+
+    # Different policies covering the same validator/event: both may settle.
+    promote(direct_vm, c, direct_bob, "clm_a")
+    promote(direct_vm, c, direct_charlie, "clm_b")
+    assert json.loads(c.get_claim("clm_a"))["underlying_finality"] == "FINAL"
+    assert json.loads(c.get_claim("clm_b"))["underlying_finality"] == "FINAL"
+
+    # A second claim under the SAME policy cannot reuse the same event.
+    direct_vm.sender = direct_alice
+    c.submit_claim("clm_a2", "pol_a", {"policy_id": "pol_a", "claimant": address(direct_alice), "validator": VALIDATOR, "documented_loss": 100, "incident_at_ts": 2}, "e")
     mock_finality(direct_vm)
     direct_vm.sender = direct_bob
-    with direct_vm.expect_revert("protocol event already used"):
-        c.verify_protocol_finality("clm_b",EVENT_ID,EVENT_URL)
+    with direct_vm.expect_revert("protocol event already used for this policy"):
+        c.verify_protocol_finality("clm_a2", EVENT_ID, EVENT_URL)
 
 
 def test_genlayer_judgment_is_permissionless_and_invalid_consensus_cannot_settle(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):

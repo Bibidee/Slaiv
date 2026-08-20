@@ -140,8 +140,12 @@ class SlaivClaims(gl.Contract):
         c = self._load(self.claims, claim_id); p = self._load(self.policies, c["policy_id"])
         if c["state"] != "AWAITING_FINALITY": raise Exception("finality already recorded")
         if not self._event_id(event_id) or not self._official_reference(p["subject_network"], reference, event_id): raise Exception("invalid protocol candidate")
-        event_key = p["subject_network"] + ":" + str(p["validator"]).lower() + ":" + event_id.lower()
-        if self.consumed_protocol_events.get(event_key, "") != "": raise Exception("protocol event already used")
+        # Scoped per-policy (not globally) so two independently insured
+        # policyholders covering the same validator can both claim against
+        # one genuine slash event; a single policy cannot reuse the same
+        # event across two of its own claims.
+        event_key = c["policy_id"] + ":" + p["subject_network"] + ":" + str(p["validator"]).lower() + ":" + event_id.lower()
+        if self.consumed_protocol_events.get(event_key, "") != "": raise Exception("protocol event already used for this policy")
         criteria = {
             "claim_id": claim_id,
             "validator": str(p["validator"]).lower(),
@@ -171,6 +175,9 @@ class SlaivClaims(gl.Contract):
             "protocol": "genlayer",
             "source": "GENLAYER_CONSENSUS_VERIFIED_EXPLORER",
             "reference": reference,
+            # Not a digest of fetched page content -- this is the verified
+            # GenLayer event id, reused as a stable per-event fingerprint so
+            # duplicate-evidence checks in _append_evidence still apply.
             "content_hash": event_id[2:].lower(),
             "submitted_at": self._now(),
             "validator": str(p["validator"]),
