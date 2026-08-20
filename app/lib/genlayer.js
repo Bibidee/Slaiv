@@ -72,7 +72,7 @@ export async function verifyFinalizedExecution(receipt,hash,clientFactory=readCl
     const code=Number(trace?.result_code);
     if(code===0)return {status:'success',label:'TRACE_SUCCESS'};
     if(code===1||code===2)return {status:'failure',label:`TRACE_ERROR_${code}`};
-  }catch(_error){/* receipt remains authoritative when trace is unavailable */}
+  }catch{/* receipt remains authoritative when trace is unavailable */}
   return direct;
 }
 export async function write(client,functionName,args=[],value=0n,onStage=()=>{}){
