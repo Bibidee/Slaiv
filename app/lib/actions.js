@@ -3,7 +3,7 @@ export function allowedActions(state,{isClaimant=false,connected=false,appealDea
   const actions=[];
   if(state==='AWAITING_FINALITY'){
     if(isClaimant)actions.push('APPEND_EVIDENCE');
-    if(connected)actions.push('VERIFY_FINALITY');
+    if(connected)actions.push('APPEND_PUBLIC_EVIDENCE','VERIFY_FINALITY');
   }
   if(state==='UNDER_REVIEW'&&connected)actions.push('REVIEW');
   const appealable=['DENIED','PARTIALLY_APPROVED','UNRESOLVED'].includes(state);
