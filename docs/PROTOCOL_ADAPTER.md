@@ -1,25 +1,59 @@
-# Protocol finality adapter
+# Permissionless protocol finality verification
 
-The browser never decides finality. By default, the operator adapter queries official GenLayer `staking validator-history` and requires an exact event ID found in that history. It refuses to infer a slash merely because a validator exists. An optional independent HTTPS source may be configured when it produces a JSON record with `claim_id`, `validator`, `finality: "FINAL"`, `observed_at_ts`, and a stable HTTPS `reference`.
+SLAIV v3 has no privileged protocol-finality adapter or authority key. The browser and CLI submit only a **candidate** official GenLayer event. The Intelligent Contract is the verifier.
 
-Configure the operator shell (not the browser build) with:
+## Candidate input
+
+`verify_protocol_finality(claim_id, event_id, reference)` accepts:
+
+- `claim_id`: an existing SLAIV claim in `AWAITING_FINALITY`;
+- `event_id`: a 32-byte hexadecimal GenLayer event/transaction identifier;
+- `reference`: the matching official explorer record for the policy's immutable `subject_network`.
+
+The caller does **not** submit a trusted `PROTOCOL_FACT`, `FINAL` flag, validator, network, incident class, timestamp, eligibility, loss, or payout.
+
+## Consensus verification
+
+Inside the Intelligent Contract:
+
+1. deterministic checks reject malformed IDs, wrong explorer domains, cross-network references, and replayed events;
+2. the GenLayer leader fetches the official explorer record using `gl.nondet.web.get`;
+3. the leader derives structured protocol facts from that source while treating the page as untrusted evidence, never instructions;
+4. validators independently refetch the same source and independently derive the same settlement-critical fields;
+5. validator, network, event ID, incident class, event timestamp, and finality must agree exactly;
+6. deterministic checks bind the verified result to the policy validator and coverage window;
+7. only then does the contract construct and store a `PROTOCOL_FACT`, mark it `verified_by=GENLAYER_CONSENSUS`, consume the event against replay, and move the claim to `UNDER_REVIEW`.
+
+If the source is unavailable, ambiguous, non-final, mismatched, or validators disagree, state does not advance.
+
+## Browser
+
+While a claim is `AWAITING_FINALITY`, any connected wallet sees **Verify protocol event**. The form asks only for the event ID and official explorer record. This is deliberately permissionless: the transaction sender pays to trigger verification but does not determine the result.
+
+## CLI
+
+Any configured funded GenLayer wallet may submit the same candidate:
 
 ```bash
-SLAIV_CLAIMS_ADDRESS=0x7BCD17b76a9c6e3daA9f12a7b7E50Cfc83AF8eA0
-GENLAYER_NETWORK=studionet
-GENLAYER_RPC_URL=https://studio.genlayer.com/api
-// Official GenLayer CLI mode
-npm run adapter:finality -- --claim-id clm_example --event-id authoritative-event-id --dry-run
-npm run adapter:finality -- --claim-id clm_example --event-id authoritative-event-id
-
-// Optional independent HTTPS source mode
-PROTOCOL_FINALITY_SOURCE_URL='https://authority.example/finality/{claimId}'
-PROTOCOL_FINALITY_ALLOWED_ORIGINS='https://authority.example'
-npm run adapter:finality -- --claim-id clm_example
+npm run verify:finality -- --claim-id clm_example --event-id 0x<64-hex>
 ```
 
-The command reads the on-chain claim and policy, verifies the event against official history or rejects a source not on the allowlist, and requires the source network to equal the immutable policy `subject_network`. It then binds the record to the claim and validator, canonicalizes it, creates a SHA-256 record fingerprint, and sends `record_protocol_finality` using the active GenLayer CLI account. The contract independently enforces the same network equality, rejects claimant-supplied protocol facts and requires its rotated `protocol_authority` wallet.
+The script derives the official explorer URL from the claim's policy network. An exact reference may also be supplied:
 
-An Asimov or Bradbury event can never satisfy a Studionet policy. Asimov validator-history commands documented elsewhere are tooling investigations only, not SLAIV release evidence.
+```bash
+npm run verify:finality -- --claim-id clm_example --event-id 0x<64-hex> --reference https://explorer-studio.genlayer.com/tx/0x<64-hex>
+```
 
-The SHA-256 fingerprint identifies the exact normalized source response; it is not a signature or a substitute for securing the authority wallet. Use a dedicated authority account, retain source records off-chain, and rotate the authority with `propose_protocol_authority` followed by `accept_protocol_authority` from the new account.
+A dry run validates only candidate shape and routing; it does not claim the source is verified:
+
+```bash
+npm run verify:finality -- --claim-id clm_example --event-id 0x<64-hex> --dry-run
+```
+
+## Network boundary
+
+A policy's `subject_network` is immutable. A Studionet policy accepts only the configured official Studionet explorer origin; Asimov and Bradbury references cannot unlock it. The same protocol event is single-use for the same network and validator.
+
+## Live-test caveat
+
+Permissionlessness does not mean fabricating events. A positive live path still requires an actual official protocol event whose record exposes enough stable information for independent validators to prove the required facts. Otherwise SLAIV correctly remains `AWAITING_FINALITY`.
