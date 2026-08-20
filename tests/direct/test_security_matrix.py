@@ -221,6 +221,54 @@ def test_claimant_may_waive_appeal_by_finalizing_own_denial(direct_vm, direct_de
     assert json.loads(c.get_claim("clm_beta"))["state"] == "FINAL"
 
 
+def test_claim_incident_outside_coverage_window_is_rejected(direct_vm, direct_deploy, direct_alice):
+    direct_vm.sender = direct_alice
+    c = direct_deploy("contracts/SlaivClaims.py")
+    c.create_policy("pol_alpha", policy(direct_alice), "p")
+    with direct_vm.expect_revert("incident outside coverage"):
+        c.submit_claim("clm_late", "pol_alpha", {"policy_id": "pol_alpha", "claimant": address(direct_alice), "validator": VALIDATOR, "documented_loss": 100, "incident_at_ts": 99999999999}, "e")
+
+
+def test_unresolved_verdict_is_never_finalizable(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    c = create_claim(direct_vm, direct_deploy, direct_alice)
+    promote(direct_vm, c, direct_bob)
+    review(direct_vm, c, direct_charlie, verdict(eligibility="UNRESOLVED", eligible_loss=0, covered_event=True, slash_final=False))
+    assert json.loads(c.get_claim("clm_beta"))["state"] == "UNRESOLVED"
+    direct_vm.sender = direct_bob
+    with direct_vm.expect_revert("cannot finalize"):
+        c.finalize_claim("clm_beta")
+    direct_vm.sender = direct_alice
+    with direct_vm.expect_revert("cannot finalize"):
+        c.finalize_claim("clm_beta")
+
+
+def test_claim_cannot_be_finalized_twice(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    c = create_claim(direct_vm, direct_deploy, direct_alice)
+    promote(direct_vm, c, direct_bob)
+    review(direct_vm, c, direct_charlie, verdict(eligibility="APPROVED", eligible_loss=100))
+    direct_vm.sender = direct_bob
+    c.finalize_claim("clm_beta")
+    with direct_vm.expect_revert("cannot finalize"):
+        c.finalize_claim("clm_beta")
+
+
+def test_outsider_may_finalize_immediately_once_appeal_is_resolved(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    direct_vm.warp("2026-08-20T08:00:00Z")
+    c = create_claim(direct_vm, direct_deploy, direct_alice)
+    promote(direct_vm, c, direct_bob)
+    review(direct_vm, c, direct_charlie, verdict(eligibility="DENIED", eligible_loss=0, exclusion_triggered=True))
+    item = evidence("clm_beta", "appeal-1")
+    direct_vm.sender = direct_alice
+    c.record_appeal("clm_beta", "Material evidence changes the loss analysis.", item)
+    direct_vm.mock_llm(r".*Return JSON only with disposition.*", json.dumps({"disposition": "UPHOLD"}))
+    direct_vm.sender = direct_charlie
+    c.review_appeal("clm_beta")
+    # No time warp: still well inside the original appeal window, but the
+    # appeal is already resolved, so an outsider need not wait.
+    c.finalize_claim("clm_beta")
+    assert json.loads(c.get_claim("clm_beta"))["finalized_by"] == address(direct_charlie)
+
+
 def test_protocol_stats_advertise_permissionless_mode(direct_vm,direct_deploy,direct_alice):
     direct_vm.sender=direct_alice
     c=direct_deploy("contracts/SlaivClaims.py")
