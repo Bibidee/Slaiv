@@ -1,4 +1,4 @@
-"""Run the release gate.  A missing deployment record or any failed check fails closed."""
+"""Run the SLAIV release gate. Missing deployment metadata or any failed check fails closed."""
 from __future__ import annotations
 
 import json
@@ -22,10 +22,12 @@ def validate_deployment() -> dict:
     if not DEPLOYMENT.exists():
         raise SystemExit("FAIL: release/deployment.json is required for a submission release.")
     record = json.loads(DEPLOYMENT.read_text(encoding="utf-8"))
-    required = {"network", "contract_address", "deployment_tx", "deployer", "protocol_authority", "source_sha256", "git_commit", "cli_version"}
+    required = {"network", "contract_address", "deployment_tx", "deployer", "source_sha256", "git_commit", "cli_version"}
     missing = sorted(key for key in required if not isinstance(record.get(key), str) or not record[key])
     if missing:
         raise SystemExit("FAIL: deployment metadata missing " + ", ".join(missing))
+    if record.get("protocol_authority"):
+        raise SystemExit("FAIL: permissionless release metadata must not declare a protocol_authority.")
     return record
 
 
@@ -34,8 +36,8 @@ def main() -> int:
     if not (ROOT / ".env.example").exists():
         raise SystemExit("FAIL: .env.example missing")
     run([sys.executable, "scripts/audit_contract_candidates.py"])
-    wsl = os.environ.get("SLAIV_DIRECT_PYTHON", "/home/imani/slaivdirect/.venv/bin/python")
-    run(["wsl.exe", "bash", "-lc", f"cd /mnt/c/Users/ojiku/Desktop/Slaiv && {wsl} -m pytest tests/direct -q"])
+    direct_python = os.environ.get("SLAIV_DIRECT_PYTHON", sys.executable)
+    run([direct_python, "-m", "pytest", "tests/direct", "-q"])
     npm = "npm.cmd" if os.name == "nt" else "npm"
     run([npm, "run", "lint"])
     run([npm, "run", "typecheck"])

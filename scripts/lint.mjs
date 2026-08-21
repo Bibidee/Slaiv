@@ -6,7 +6,6 @@ const files = [
   'app/lib/genlayer.js',
   'src/domain.js',
   'src/fixtures.js',
-  'src/adapter.js',
 ];
 const banned = ['alert(', 'Math.random', 'localStorage', '0x71…A92', '18,492,114'];
 

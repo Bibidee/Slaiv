@@ -1,23 +1,10 @@
 {
   "network": "studionet",
   "rpc_url": "https://studio.genlayer.com/api",
-  "contract_address": "0x7BCD17b76a9c6e3daA9f12a7b7E50Cfc83AF8eA0",
-  "deployment_tx": "0x771f5ad3ac3111395761c008d7019ebe91e5f59991635343b3b793a3a1058fd4",
+  "contract_address": "0xc17bfE775D46080E9A58F1eC80edC2E7A04DF101",
+  "deployment_tx": "0x5ecab1576a818abdf7ce3018429deeb2bec1fefbbb8258e63a278f499d6a2028",
   "deployer": "0x79b3ecbe6a65bee93b2fcda78e6909892671507f",
-  "protocol_authority": "0xe362cf45d3b3dfb38ef78099daba6e3e7c96c792",
-  "source_sha256": "d00542cc83511cb595c9459fb74874e18b14908568c3b3b13cfa1a01abd8f943",
-  "git_commit": "edb48853c3f4de10c0b2bab2d766763bd8487162",
-  "cli_version": "genlayer@0.39.2",
-  "authority_proposal_tx": "0x2062be4ed46897967dcb6f042412a668e2db0b6e6b9dc7f82181edf43e769c62",
-  "authority_acceptance_tx": "0x9aaa5fc8ea85d0b02077d75d04d75b30d28686c128381fa9a1f48d23e9f0ad4c",
-  "live_proof": {
-    "policy_id": "pol_network_release_20260818",
-    "subject_network": "studionet",
-    "policy_tx": "0xed5eb036574fb555ec3dd559e3b597d70d017c619f669b5f9ede18e025c9d73c",
-    "claim_id": "clm_network_failclosed_20260818",
-    "claim_tx": "0xdc20a1386f8d32b17b044d2ea9d5359f1359331f33e530d55f65736ae24a0af7",
-    "evidence_tx": "0x6ba1ea28bcb64a4c0b20f3516ad81b72dba4b90e13617d4579eddfa239db56e9",
-    "resulting_state": "AWAITING_FINALITY",
-    "payout": "0"
-  }
+  "source_sha256": "23302fca89fd298988bab337010a9696ebce5a880182789c18a6ff9df39a260f",
+  "git_commit": "1e661be442eb36796831f8764001eb204569a6fd",
+  "cli_version": "genlayer@0.39.2"
 }
