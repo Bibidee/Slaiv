@@ -54,6 +54,13 @@ def review(direct_vm, contract, sender, result=None, claim_id="clm_beta"):
     ({"coverage_limit": 0}, "invalid coverage limit"),
     ({"deductible_bps": 10001}, "invalid deductible"),
     ({"covered_events": []}, "invalid covered events"),
+    # MISSED_APPEAL_WINDOW was removed from EVENTS (see docs/PROTOCOL_ADAPTER.md,
+    # "Unsupported: MISSED_APPEAL_WINDOW"): the official RPC exposes
+    # appeal_leader_timeout/appeal_validators_timeout only as transaction-wide
+    # booleans with no validator-address attribution, so a policy can no
+    # longer be created advertising coverage for it.
+    ({"covered_events": ["MISSED_APPEAL_WINDOW"]}, "invalid covered events"),
+    ({"covered_events": ["MISSED_EXECUTION_WINDOW", "MISSED_APPEAL_WINDOW"]}, "invalid covered events"),
 ])
 def test_policy_terms_remain_deterministically_bounded(direct_vm, direct_deploy, direct_alice, changes, error):
     direct_vm.sender = direct_alice
@@ -114,6 +121,13 @@ def test_finality_verification_unavailable_for_network_without_a_verified_rpc_ma
     {"timestamp_awaiting_finalization": 10000000000},                 # coverage-window mismatch
     {"rotation_count": 3, "leader_timeout_validators": []},           # ambiguous rotation, no explicit timeout flag
     {"appeal_failed": 1, "leader_timeout_validators": []},            # appeal failed on the merits, not a timeout
+    # MISSED_APPEAL_WINDOW was removed: these booleans must never classify an
+    # incident on their own, even when true and even when the insured
+    # validator would otherwise be a plausible target, because the RPC gives
+    # no way to bind them to a specific validator address.
+    {"appeal_leader_timeout": True, "leader_timeout_validators": []},
+    {"appeal_validators_timeout": True, "leader_timeout_validators": []},
+    {"appeal_leader_timeout": True, "appeal_validators_timeout": True, "leader_timeout_validators": []},
 ])
 def test_consensus_verified_finality_fails_closed_on_mismatch(direct_vm, direct_deploy, direct_alice, direct_bob, tx_changes):
     c = create_claim(direct_vm, direct_deploy, direct_alice)
@@ -122,6 +136,29 @@ def test_consensus_verified_finality_fails_closed_on_mismatch(direct_vm, direct_
     with direct_vm.expect_revert("protocol finality not verified"):
         c.verify_protocol_finality("clm_beta", EVENT_ID)
     assert json.loads(c.get_claim("clm_beta"))["state"] == "AWAITING_FINALITY"
+
+
+@pytest.mark.parametrize("event_at_ts,should_pass", [
+    (10, True),    # exact coverage_start_ts boundary: inclusive, must pass
+    (9, False),    # one second before coverage_start_ts: must fail
+    (20, True),    # exact coverage_end_ts boundary: inclusive, must pass
+    (21, False),   # one second after coverage_end_ts: must fail
+])
+def test_coverage_window_exact_boundaries(direct_vm, direct_deploy, direct_alice, direct_bob, event_at_ts, should_pass):
+    direct_vm.sender = direct_alice
+    c = direct_deploy("contracts/SlaivClaims.py")
+    p = policy(direct_alice); p["coverage_start_ts"] = 10; p["coverage_end_ts"] = 20
+    c.create_policy("pol_alpha", p, "p")
+    c.submit_claim("clm_beta", "pol_alpha", {"policy_id": "pol_alpha", "claimant": address(direct_alice), "validator": VALIDATOR, "documented_loss": 100, "incident_at_ts": 10}, "e0")
+    mock_finality(direct_vm, rpc_tx(timestamp_awaiting_finalization=event_at_ts))
+    direct_vm.sender = direct_bob
+    if should_pass:
+        c.verify_protocol_finality("clm_beta", EVENT_ID)
+        assert json.loads(c.get_claim("clm_beta"))["state"] == "UNDER_REVIEW"
+    else:
+        with direct_vm.expect_revert("protocol finality not verified"):
+            c.verify_protocol_finality("clm_beta", EVENT_ID)
+        assert json.loads(c.get_claim("clm_beta"))["state"] == "AWAITING_FINALITY"
 
 
 def test_finality_fails_closed_on_ambiguous_real_world_rotation_without_explicit_timeout_flag(direct_vm, direct_deploy, direct_alice, direct_bob):

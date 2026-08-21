@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
 export const CLAIM_STATES = ['DRAFT','SUBMITTED','EVIDENCE_PENDING','AWAITING_FINALITY','UNDER_REVIEW','APPROVED','PARTIALLY_APPROVED','DENIED','UNRESOLVED','APPEALED','FINAL'];
-export const EVENTS = ['MISSED_EXECUTION_WINDOW','MISSED_APPEAL_WINDOW'];
+// MISSED_APPEAL_WINDOW was removed: the official RPC exposes
+// appeal_leader_timeout/appeal_validators_timeout only as transaction-wide
+// booleans with no validator-address attribution, so it cannot be safely
+// bound to the validator a given policy insures. See contracts/SlaivClaims.py.
+export const EVENTS = ['MISSED_EXECUTION_WINDOW'];
 export const ProvenanceSchema = z.object({ kind:z.enum(['PROTOCOL FACT','MONITOR OBSERVATION','CLAIMANT ASSERTION','GENLAYER JUDGMENT','DEMO FIXTURE']), mode:z.enum(['authoritative','observed','asserted','judged','fixture','unavailable']), source:z.string().min(1), url:z.string().url().refine(value=>new URL(value).protocol==='https:',{message:'Only HTTPS evidence URLs are supported'}).optional(), retrievedAt:z.string().datetime().optional(), reference:z.string().optional(), commitment:z.string().regex(/^sha256:[a-f0-9]{64}$/).optional(), finality:z.enum(['FINAL','PENDING','UNKNOWN','UNAVAILABLE']).default('UNKNOWN'), usedInAdjudication:z.boolean().default(false), error:z.string().optional() });
 export const PolicySchema=z.object({policyId:z.string().regex(/^pol_[a-zA-Z0-9_-]+$/),holder:z.string().regex(/^0x[a-fA-F0-9]{40}$/),protocol:z.literal('genlayer'),validator:z.string().min(3).max(128),coverageStart:z.string().datetime(),coverageEnd:z.string().datetime(),coverageLimit:z.coerce.bigint().positive(),coveredEvents:z.array(z.enum(EVENTS)).min(1).max(8),exclusions:z.array(z.string().min(1).max(120)).max(8),deductibleBps:z.coerce.number().int().min(0).max(10000),payoutRule:z.literal('min(eligible_loss_after_deductible, coverage_limit)')}).superRefine((p,ctx)=>{if(Date.parse(p.coverageStart)>=Date.parse(p.coverageEnd))ctx.addIssue({code:'custom',message:'coverageStart must precede coverageEnd'})});
 export const ClaimSchema=z.object({claimId:z.string().regex(/^clm_[a-zA-Z0-9_-]+$/),policyId:z.string(),claimant:z.string().regex(/^0x[a-fA-F0-9]{40}$/),validator:z.string().min(3),incidentAt:z.string().datetime(),incidentClass:z.enum(EVENTS),documentedLoss:z.coerce.bigint().positive(),finality:z.enum(['FINAL','PENDING','UNKNOWN']),explanation:z.string().max(4000),evidence:z.array(ProvenanceSchema).min(1).max(12)});

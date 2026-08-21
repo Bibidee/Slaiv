@@ -17,7 +17,7 @@ The contract maps each network to the documented, standard `eth_getTransactionBy
 
 | Network | RPC endpoint | Status |
 |---|---|---|
-| `studionet` | `https://studio.genlayer.com/api` | Verified: confirmed `eth_getTransactionByHash` returns GenLayer's enriched consensus/timeout fields (`status`, `consensus_data`, `leader_timeout_validators`, `appeal_leader_timeout`, `appeal_validators_timeout`, `appeal_failed`, `timestamp_awaiting_finalization`), identical to the explorer's own internal data. |
+| `studionet` | `https://studio.genlayer.com/api` | Verified: confirmed `eth_getTransactionByHash` returns GenLayer's enriched consensus/timeout fields (`status`, `consensus_data`, `leader_timeout_validators`, `appeal_leader_timeout`, `appeal_validators_timeout`, `appeal_failed`, `timestamp_awaiting_finalization`), identical to the explorer's own internal data. Only `leader_timeout_validators` is used for settlement -- see "Unsupported: MISSED_APPEAL_WINDOW" below for why the appeal-timeout fields are read but never trusted for classification. |
 | `testnetAsimov` | `https://rpc-asimov.genlayer.com` | **Not verified.** The RPC URL is real (from GenLayer's own published `genlayer-js` SDK chain config) and responds to `eth_getTransactionByHash`, but this codebase has not confirmed a real Asimov transaction returns the same enriched consensus fields Studio's node does — the one sample checked returned only a bare hash with every consensus field null. `verify_protocol_finality` **fails closed** for this network (`"network verification source not available"`) rather than assume the shape matches. |
 | `testnetBradbury` | `https://rpc-bradbury.genlayer.com` | **Not verified**, same reasoning as Asimov. Fails closed. |
 
@@ -32,8 +32,7 @@ Inside the Intelligent Contract:
 3. the leader deterministically derives settlement facts from that response's structured fields — no LLM is involved in this step. Specifically:
    - `event_final` is `true` only when `status == "FINALIZED"`;
    - `incident_class` is `MISSED_EXECUTION_WINDOW` only when the policy's specific validator address appears in `leader_timeout_validators`;
-   - `incident_class` is `MISSED_APPEAL_WINDOW` only when `appeal_leader_timeout` or `appeal_validators_timeout` is `true`;
-   - any other combination yields incident_class `""`, which is rejected (not a member of the two supported classes) — this is a deliberate fail-closed default, not an inferred guess;
+   - any other combination yields incident_class `""`, which is rejected (not the one supported class) — this is a deliberate fail-closed default, not an inferred guess;
    - `rotation_count > 0` alone, and `appeal_failed > 0` alone, are never sufficient to establish an incident: rotation can be caused by validator disagreement rather than a timeout, and a failed appeal can simply mean the appellant lost on the merits;
 4. validators independently re-run the same RPC request and independently derive the same fields;
 5. validator address, network, transaction hash, incident class, event timestamp, and finality must agree exactly between leader and validator, and the transaction hash returned by the RPC must match the requested `event_id`;
@@ -60,10 +59,14 @@ A dry run validates only candidate shape and routing (including whether the poli
 npm run verify:finality -- --claim-id clm_example --event-id 0x<64-hex> --dry-run
 ```
 
+## Unsupported: MISSED_APPEAL_WINDOW
+
+Earlier revisions of this contract also supported `MISSED_APPEAL_WINDOW`, classified when `appeal_leader_timeout` or `appeal_validators_timeout` was `true`. A live-transaction audit found that neither field is validator-scoped: `eth_getTransactionByHash` exposes them only as transaction-wide booleans, with no equivalent to `leader_timeout_validators` naming which validator's appeal round actually timed out. GenLayer's own consensus/fee-accounting model (each round has an explicit `leader` and per-validator votes, and a `LEADER_TIMEOUT` vote is tied to that round's specific leader address) confirms the underlying protocol *does* attribute these timeouts to individual validators -- but that attribution is not exposed in the public RPC response SLAIV queries, only a same-round snapshot (`last_round`) with no proof it corresponds to the round where any given timeout boolean was set. Accepting the bare booleans would let an appeal timeout on an unrelated validator settle a claim against a policy insuring a different one. Rather than ship that gap, `MISSED_APPEAL_WINDOW` was removed from `EVENTS` entirely; policies can no longer be created advertising coverage for it, and the contract never classifies an incident that way. See `docs/DEPLOYMENT.md` for the deployment this was found on and superseded.
+
 ## Network boundary and replay scope
 
 A policy's `subject_network` is immutable, and only networks with a verified RPC mapping (currently `studionet` only) can reach `UNDER_REVIEW`. Replay protection is scoped **per policy**, not globally: `consumed_protocol_events` is keyed by `policy_id + network + validator + event_id`, so the same genuine slash event can legitimately settle independent claims on two different policies that both cover the affected validator, while a single policy cannot reuse the same event across two of its own claims.
 
 ## Live-test caveat
 
-Permissionlessness does not mean fabricating events. A positive live path still requires an actual official GenLayer transaction whose RPC record genuinely names the policy's validator in `leader_timeout_validators` (or sets `appeal_leader_timeout`/`appeal_validators_timeout`). As of this writing, **no genuine live Studionet transaction exhibiting either condition has been captured or reproduced** — sampling roughly 1,000 real Studionet transactions via the RPC found none. Direct Mode tests instead mirror the real RPC schema (confirmed field names and value shapes) with synthetic values in those specific fields. Until a real example is captured, treat the "valid incident" path as schema-verified but not yet incident-verified end-to-end against a live event.
+Permissionlessness does not mean fabricating events. A positive live path still requires an actual official GenLayer transaction whose RPC record genuinely names the policy's validator in `leader_timeout_validators`. As of this writing, **no genuine live Studionet transaction exhibiting that condition has been captured or reproduced** — sampling roughly 1,000 real Studionet transactions via the RPC found none. Direct Mode tests instead mirror the real RPC schema (confirmed field names and value shapes) with synthetic values in that field. Until a real example is captured, treat the "valid incident" path as schema-verified but not yet incident-verified end-to-end against a live event.

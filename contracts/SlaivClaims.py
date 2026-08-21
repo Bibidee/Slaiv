@@ -11,7 +11,17 @@ from genlayer import *
 from datetime import datetime, timezone
 import json
 
-EVENTS = ("MISSED_EXECUTION_WINDOW", "MISSED_APPEAL_WINDOW")
+# MISSED_APPEAL_WINDOW was removed after a live audit (see docs/DEPLOYMENT.md,
+# "superseded" entry for 0x5E90423450c1a571f0434014aA03A3958887E437): the
+# official Studionet RPC exposes appeal_leader_timeout/appeal_validators_timeout
+# only as transaction-wide booleans with no field binding either one to a
+# specific validator address (unlike leader_timeout_validators, which does).
+# A verified appeal-timeout on transaction T could therefore not be proven to
+# belong to the validator any given policy insures -- it could belong to any
+# other validator that happened to sit on the same GenLayer transaction's
+# appeal round. Rather than ship an unverifiable validator-binding, this event
+# class is not supported until GenLayer's public RPC exposes that mapping.
+EVENTS = ("MISSED_EXECUTION_WINDOW",)
 SUBJECT_NETWORKS = ("studionet", "testnetAsimov", "testnetBradbury")
 TERMINAL = ("APPROVED", "PARTIALLY_APPROVED", "DENIED")
 EVIDENCE_KINDS = ("CLAIMANT_ASSERTION", "PUBLIC_SOURCE", "PROTOCOL_FACT")
@@ -78,26 +88,40 @@ class SlaivClaims(gl.Contract):
         """Deterministically derive an incident class from raw RPC fields.
 
         MISSED_EXECUTION_WINDOW only when the policy's specific validator
-        appears in leader_timeout_validators. MISSED_APPEAL_WINDOW only when
-        the transaction's own appeal_leader_timeout/appeal_validators_timeout
-        flags are true. rotation_count and appeal_failed are deliberately
-        never consulted here: rotation can be caused by validator
-        disagreement rather than a timeout, and appeal_failed alone means an
-        appeal was decided on the merits, not that anyone missed a deadline.
-        Any other combination returns "" (unsupported/ambiguous), which
-        _valid_protocol_result rejects since "" is not in EVENTS.
+        address appears in leader_timeout_validators -- an explicit,
+        validator-scoped list the official RPC exposes for this event only.
+        rotation_count and appeal_failed are deliberately never consulted
+        here: rotation can be caused by validator disagreement rather than a
+        timeout, and appeal_failed alone means an appeal was decided on the
+        merits, not that anyone missed a deadline. appeal_leader_timeout and
+        appeal_validators_timeout are deliberately never consulted either --
+        see the EVENTS comment above; they are transaction-wide booleans with
+        no validator-address attribution in the public RPC schema, so no
+        incident class is derived from them. Any other combination returns
+        "" (unsupported/ambiguous), which _valid_protocol_result rejects
+        since "" is not in EVENTS.
         """
         validator = str(validator).lower()
         leader_timeouts = tx.get("leader_timeout_validators")
         if isinstance(leader_timeouts, list) and any(str(v).lower() == validator for v in leader_timeouts):
             return "MISSED_EXECUTION_WINDOW"
-        if tx.get("appeal_leader_timeout") is True or tx.get("appeal_validators_timeout") is True:
-            return "MISSED_APPEAL_WINDOW"
         return ""
 
     def _protocol_facts_from_tx(self, tx: dict, p: dict, event_id: str) -> dict:
         if not isinstance(tx, dict) or str(tx.get("hash", "")).lower() != event_id.lower():
             return {"verified": False}
+        # timestamp_awaiting_finalization is when the transaction's deciding
+        # round reached consensus and entered the pre-finality window, not a
+        # dedicated "validator went idle at this instant" field -- the public
+        # RPC schema does not expose one. For MISSED_EXECUTION_WINDOW this is
+        # a safe proxy for the incident time: a leader-timeout round has no
+        # further work once idleness is detected, so it concludes (and this
+        # timestamp is set) within the same short consensus-round window as
+        # the timeout itself -- not the much longer, human-scale
+        # APPEAL_WINDOW_SECONDS delay that a since-removed appeal-timeout
+        # event class would have been exposed to (see the EVENTS comment
+        # above). That bounded, round-scale gap is why this timestamp remains
+        # safe to use for MISSED_EXECUTION_WINDOW's coverage-window check.
         ts = tx.get("timestamp_awaiting_finalization")
         return {
             "verified": True,
@@ -234,7 +258,7 @@ class SlaivClaims(gl.Contract):
             "finality": "FINAL",
             "incident_class": verified["incident_class"],
             "event_at_ts": verified["event_at_ts"],
-            "reasoning_summary": "Deterministically derived from official RPC transaction fields (status, leader_timeout_validators, appeal_leader_timeout, appeal_validators_timeout).",
+            "reasoning_summary": "Deterministically derived from official RPC transaction fields (status, leader_timeout_validators).",
             "verified_by": "GENLAYER_CONSENSUS",
         }
         self._assert_evidence(protocol_evidence, claim_id, ("PROTOCOL_FACT",))
