@@ -265,6 +265,27 @@ def test_protocol_validator_independently_refetches_and_can_disagree(direct_vm, 
     assert direct_vm.run_validator() is False
 
 
+def test_protocol_validator_agrees_on_matching_fail_closed_non_incident(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """Leader and validator independently deriving the SAME fail-closed
+    (non-incident) result must reach consensus agreement -- disagreement
+    should only occur when their independently-fetched facts genuinely
+    differ, not merely because the agreed-upon facts fail to represent a
+    valid incident. The outer _valid_protocol_result(verified, ...) check
+    in verify_protocol_finality still independently rejects this case
+    (see the expect_revert below); this test isolates the consensus
+    agreement step itself, which must not additionally re-derive validity."""
+    c = create_claim(direct_vm, direct_deploy, direct_alice)
+    non_incident_tx = rpc_tx(leader_timeout_validators=[])
+    mock_finality(direct_vm, non_incident_tx)
+    direct_vm.sender = direct_bob
+    with direct_vm.expect_revert("protocol finality not verified"):
+        c.verify_protocol_finality("clm_beta", EVENT_ID)
+    direct_vm.clear_mocks()
+    # Validator independently re-fetches and gets the identical non-incident result.
+    mock_finality(direct_vm, non_incident_tx)
+    assert direct_vm.run_validator() is True
+
+
 def test_protocol_event_replay_is_scoped_per_policy(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
     """A genuine slash event may support independent claims on separate
     policies (e.g. two policyholders insured against the same validator),
