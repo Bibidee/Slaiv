@@ -46,7 +46,7 @@ For protocol finality, the browser or CLI submits only a candidate GenLayer tran
 
 Development is isolated on the `permissionless-v3` branch (draft PR #5, not merged to `main`). A permissionless v3 contract has been deployed to Studionet and source-matched, but the public frontend still points at the historical authority-gated release below until this branch is reviewed and merged.
 
-- v3 Studionet contract (pending merge): `0x5E90423450c1a571f0434014aA03A3958887E437` -- see `docs/DEPLOYMENT.md` for the full record, source hash, and live fail-closed proof.
+- v3 Studionet contract (pending merge): `0x95FCEcA657dCfc87F140B616e79fD9D04700bBA9` -- see `docs/DEPLOYMENT.md` for the full record, source hash, and live proof. Supports `MISSED_EXECUTION_WINDOW` only; `MISSED_APPEAL_WINDOW` was found to be validator-unbound in an earlier audit deployment and was removed (see `docs/DEPLOYMENT.md`, "Why the prior deployment was superseded").
 - Current historical production release: Studionet contract `0x7BCD17b76a9c6e3daA9f12a7b7E50Cfc83AF8eA0`, deployment tx `0x771f5ad3ac3111395761c008d7019ebe91e5f59991635343b3b793a3a1058fd4`, frozen source commit `edb48853c3f4de10c0b2bab2d766763bd8487162`. This is the authority-gated v2 release and remains the live production contract until v3 is merged and switched over.
 
 ## Trigger finality verification from CLI
