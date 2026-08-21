@@ -1,29 +1,34 @@
 # Current release
 
 - Network: Studionet (`https://studio.genlayer.com/api`)
-- Contract: `0x95FCEcA657dCfc87F140B616e79fD9D04700bBA9`
-- Deployment tx: `0xbcd0d5f4c2c9f6e10f636c1640f51659e08f76750ea297d5f3849e30758582c4`
-- Deployment timestamp: 2026-08-21 (Studionet-confirmed `FINALIZED`)
+- Contract: `0xE2c8ECFa29Dd67a1dDe8026Df62628bE765d78A5`
+- Deployment tx: `0x22a18d4194b8594206b0e82daec2e2b3743534ab9c2302a7f650ed348dd64c4b`
+- Deployment timestamp: 2026-08-21T07:57:59Z (Studionet-confirmed `FINALIZED`)
 - Frozen source commit: `5be08dd3786537ec4d68a8f75cf81b8898d679a8` (`permissionless-v3`)
 - Canonical source SHA-256: `3ab4d28b265a5d32779d488ae2ae68a4b638e7165cedf9fa7a10d9a163da6cf7`
-- Deployer: `0x79b3ecbe6a65bee93b2fcda78e6909892671507f`
+- Deployer: `0xc81d1717a158a76559a6890660d80213678efe57`
 - Protocol authority: none. This is the permissionless v3 release; there is no privileged finality role.
 - CLI: `genlayer@0.39.2`
 - Supported incident types: `MISSED_EXECUTION_WINDOW` only. `MISSED_APPEAL_WINDOW` is not supported -- see "Why the prior deployment was superseded" below.
 - Tests: 53 Direct Mode passed; 35 frontend tests passed
-- Source match: local and network SHA equal; `SOURCE MATCH: PASS`
-- Preflight: `PREFLIGHT: PASS`
-- Explorer: https://explorer-studio.genlayer.com/address/0x95FCEcA657dCfc87F140B616e79fD9D04700bBA9
+- Source match: **caveat.** `scripts/source_match.py` reports `FAIL` against this address -- `genlayer code` returns the deployed source with the module-level docstring (the `"""Permissionless SLAIV..."""` block) stripped, which is not present in `contracts/SlaivClaims.py`. A manual line-by-line diff confirms every other line, including the full body, `EVENTS`, and the MISSED_APPEAL_WINDOW-removal comment, is byte-identical; the only difference is that missing docstring plus a `# v0.2.17` tag `genlayer code` prepends. This looks like an artifact of how `genlayer code` reconstructs source for this deployment, not an actual difference in the deployed logic, but the automated gate cannot currently confirm that on its own -- `preflight.py` will also report `FAIL` on this contract until that's resolved. Treat this deployment as functionally verified by manual diff, not by the automated source-match tool, until that gap is closed.
+- Explorer: https://explorer-studio.genlayer.com/address/0xE2c8ECFa29Dd67a1dDe8026Df62628bE765d78A5
 
 This release has not been merged to `main` and the public frontend has not been switched to it. It is pending review on draft PR #5.
 
-## Why the prior deployment was superseded
+## Why the prior deployments were superseded
 
 `0x5E90423450c1a571f0434014aA03A3958887E437` (deployed 2026-08-20) supported a second incident type, `MISSED_APPEAL_WINDOW`, classified whenever the official RPC's `appeal_leader_timeout` or `appeal_validators_timeout` flags were `true`. A live-transaction audit on 2026-08-21 found this was a genuine settlement-logic bug, not a caller/tooling issue: those flags are exposed only as transaction-wide booleans, with no field binding either one to a specific validator address, unlike `leader_timeout_validators` (which explicitly enumerates the timed-out validator and remains genuinely validator-bound). GenLayer's own consensus/fee-distribution model (`genlayerlabs/genlayer-fee-distribution-simulator`) confirms leader-timeouts, including during appeal rounds, are attributed to one specific round's leader address at the protocol level -- but that attribution never reaches the public `eth_getTransactionByHash` response SLAIV queries. Concretely: a genuine appeal timeout on validator X could have satisfied a claim against a SLAIV policy insuring an unrelated validator Y, as long as both happened to sit on the same GenLayer transaction.
 
-`MISSED_APPEAL_WINDOW` has been removed from `EVENTS` entirely (see `contracts/SlaivClaims.py`, `docs/PROTOCOL_ADAPTER.md`) rather than shipping an unverifiable validator binding. `0x5E90423450c1a571f0434014aA03A3958887E437` is retained below purely as historical/audit evidence of the flaw and the reasoning that led to the fix -- it must not be treated as a release candidate, pointed to by the frontend, or reused.
+`MISSED_APPEAL_WINDOW` has been removed from `EVENTS` entirely (see `contracts/SlaivClaims.py`, `docs/PROTOCOL_ADAPTER.md`) rather than shipping an unverifiable validator binding.
 
-## Live release proof (v3, permissionless -- current release)
+`0x95FCEcA657dCfc87F140B616e79fD9D04700bBA9` (deployed 2026-08-21) was the first corrected deployment carrying that fix, deployed from the `faultline-dev` CLI wallet and fully live-tested (see its entry under Superseded releases below for that test record). It was superseded by the current release above, a fresh deployment of the identical source from a different wallet.
+
+Both `0x5E90423450c1a571f0434014aA03A3958887E437` and `0x95FCEcA657dCfc87F140B616e79fD9D04700bBA9` are retained below purely as historical/audit evidence -- neither must be treated as a release candidate, pointed to by the frontend, or reused.
+
+## Live release proof (v3, permissionless)
+
+The lifecycle test below was run against the immediately-prior deployment, `0x95FCEcA657dCfc87F140B616e79fD9D04700bBA9` (identical source to the current release; see "Why the prior deployments were superseded"). The current release, `0xE2c8ECFa29Dd67a1dDe8026Df62628bE765d78A5`, was deployed separately from a different wallet and has not yet had this same manual lifecycle re-run against it -- only its deployment (`FINALIZED`, `SUCCESS`) and the source diff above are confirmed so far. Re-running this lifecycle against the current release address is recommended before merge.
 
 Manual multi-wallet lifecycle test performed against `0x95FCEcA657dCfc87F140B616e79fD9D04700bBA9`, using two independent CLI-managed wallets (`faultline-dev` as policy holder/claimant, `recallshield-studio-test` as an unrelated outsider wallet):
 
@@ -57,6 +62,7 @@ Result: `client.getSlashingAddress is not a function`. This Asimov query investi
 
 ## Superseded releases
 
+- `0x95FCEcA657dCfc87F140B616e79fD9D04700bBA9` -- **SUPERSEDED.** tx `0xbcd0d5f4c2c9f6e10f636c1640f51659e08f76750ea297d5f3849e30758582c4`, deployed 2026-08-21 from the `faultline-dev` CLI wallet, frozen source commit `5be08dd3786537ec4d68a8f75cf81b8898d679a8`, source SHA-256 `3ab4d28b265a5d32779d488ae2ae68a4b638e7165cedf9fa7a10d9a163da6cf7` (`SOURCE MATCH: PASS` against this one). Same corrected source as the current release; superseded by a fresh deployment from a different wallet, not by any further code change. Live proof recorded above under "Live release proof."
 - `0x5E90423450c1a571f0434014aA03A3958887E437` -- **SUPERSEDED / TEST-AUDIT DEPLOYMENT.** tx `0x26267d45384a2879226f55951c8b8c43ebe9b5876f59799f72cadea1eecaf833`, frozen source commit `6312fdb8f8c225747835feaa7340b270ddb23447`, source SHA-256 `694721a37a9790673e88bfb45f3c6d98c8535c323a6f0be0080d30c17d793274`. Reason superseded: validator-unbound `MISSED_APPEAL_WINDOW` settlement logic (see "Why the prior deployment was superseded" above). Retained only as audit evidence; do not point the frontend at it, and do not treat its `verify_protocol_finality` live-proof claim as valid (see correction record above).
 - `0x7BCD17b76a9c6e3daA9f12a7b7E50Cfc83AF8eA0` (historical v2, authority-gated), tx `0x771f5ad3ac3111395761c008d7019ebe91e5f59991635343b3b793a3a1058fd4`, frozen source commit `edb48853c3f4de10c0b2bab2d766763bd8487162`, source SHA-256 `d00542cc83511cb595c9459fb74874e18b14908568c3b3b13cfa1a01abd8f943`, protocol authority `0xe362cf45d3b3dfb38ef78099daba6e3e7c96c792`. Authority rotation completed through proposal tx `0x2062be4ed46897967dcb6f042412a668e2db0b6e6b9dc7f82181edf43e769c62` and acceptance tx `0x9aaa5fc8ea85d0b02077d75d04d75b30d28686c128381fa9a1f48d23e9f0ad4c`. Live proof: Studionet-bound policy `pol_network_release_20260818` (tx `0xed5eb036574fb555ec3dd559e3b597d70d017c619f669b5f9ede18e025c9d73c`), claim `clm_network_failclosed_20260818` (tx `0xdc20a1386f8d32b17b044d2ea9d5359f1359331f33e530d55f65736ae24a0af7`), claimant evidence tx `0x6ba1ea28bcb64a4c0b20f3516ad81b72dba4b90e13617d4579eddfa239db56e9`. Result: `state=AWAITING_FINALITY`, `underlying_finality=PENDING`, review absent, payout `0`. Full historical dossier remains in `SUBMISSION_READINESS.md`.
 - `0x8B1Db5604D2dDDa6741fB9C7168EC7fA468FD440`, tx `0xa9faac339e157bf428633d807906a033d830f2e17a4050c52f6b1b1832ef477a`

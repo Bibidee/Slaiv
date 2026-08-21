@@ -1,9 +1,9 @@
 {
   "network": "studionet",
   "rpc_url": "https://studio.genlayer.com/api",
-  "contract_address": "0x95FCEcA657dCfc87F140B616e79fD9D04700bBA9",
-  "deployment_tx": "0xbcd0d5f4c2c9f6e10f636c1640f51659e08f76750ea297d5f3849e30758582c4",
-  "deployer": "0x79b3ecbe6a65bee93b2fcda78e6909892671507f",
+  "contract_address": "0xE2c8ECFa29Dd67a1dDe8026Df62628bE765d78A5",
+  "deployment_tx": "0x22a18d4194b8594206b0e82daec2e2b3743534ab9c2302a7f650ed348dd64c4b",
+  "deployer": "0xc81d1717a158a76559a6890660d80213678efe57",
   "source_sha256": "3ab4d28b265a5d32779d488ae2ae68a4b638e7165cedf9fa7a10d9a163da6cf7",
   "git_commit": "5be08dd3786537ec4d68a8f75cf81b8898d679a8",
   "cli_version": "genlayer@0.39.2"
