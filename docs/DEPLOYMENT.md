@@ -28,17 +28,25 @@ Both `0x5E90423450c1a571f0434014aA03A3958887E437` and `0x95FCEcA657dCfc87F140B61
 
 ## Live release proof (v3, permissionless -- current release)
 
-Manual multi-wallet lifecycle test performed against `0xE2c8ECFa29Dd67a1dDe8026Df62628bE765d78A5` (the current release address), using two independent CLI-managed wallets (`faultline-dev` as policy holder/claimant, `recallshield-studio-test` as an unrelated outsider wallet). Every step below was independently confirmed via each transaction's decoded exception text (not just its ERROR/SUCCESS badge) and by re-reading contract state after each step:
+Manual multi-wallet lifecycle test performed against `0xE2c8ECFa29Dd67a1dDe8026Df62628bE765d78A5` (the current release address), using two independent CLI-managed wallets (`faultline-dev` as policy holder/claimant, `recallshield-studio-test` as an unrelated outsider wallet). Every step below was independently confirmed via each transaction's decoded exception text (not just its ERROR/SUCCESS badge) and by re-reading contract state after each step.
 
-- Policy `pol_v3c_lifecycle_20260821`, holder `0x79b3ecbe6a65bee93b2fcda78e6909892671507f`: created successfully by its own holder (tx `0x8afbe4c7...9a593a6`, `FINALIZED`). `get_policy` confirms the exact stored terms.
-- Claim `clm_v3c_lifecycle_20260821`: filed successfully by the policy holder against its own policy (tx `0xf5071850...e90a24c16`, `FINALIZED`). `get_claim` confirms `state=AWAITING_FINALITY`, `underlying_finality=PENDING`.
-- Outsider `PUBLIC_SOURCE` evidence: accepted permissionlessly (tx `0xbea688bf...151b85b`, `FINALIZED`). `get_evidence` confirms it stored with `submitted_by` equal to the outsider wallet.
-- Impersonation attempt: outsider wallet tried `create_policy` naming the holder wallet as `holder` -- rejected (`holder mismatch`). No record created.
-- Duplicate policy creation (same `policy_id`): rejected (`duplicate policy`).
-- Policy creation advertising `covered_events: ["MISSED_APPEAL_WINDOW"]`: rejected (`invalid covered events`) -- confirms the removal live on this specific deployment, not just in Direct Mode or the prior (superseded) live test.
-- Outsider `CLAIMANT_ASSERTION` evidence attempt: rejected (`unauthorized evidence`). (First attempt at this used an all-digit test hash and was misleadingly rejected as `invalid evidence hash` instead -- see "CLI numeric-string encoding" below; redone with a hex-letter hash to get the intended rejection reason.)
-- `review_slashing_claim`, `finalize_claim`, `record_appeal`, and `review_appeal` were each attempted at this (non-advanced) claim state and correctly rejected by their state guards.
-- `get_protocol_stats` after the full run: `{"policy_count": 1, "claim_count": 1, "permissionless": true}` -- only the one legitimate policy and claim exist; none of the six rejected attempts left partial state.
+**Reading this table:** the explorer shows a bare `ERROR`/`SUCCESS` badge with no context. 7 of these 11 transactions are deliberate attack/misuse attempts (impersonation, duplication, coverage-bypass, unauthorized writes, out-of-sequence calls) that are *designed* to be rejected -- `ERROR` there means the security model worked, not that something broke. A green board (11/11 `SUCCESS`) would mean the contract has no protections at all.
+
+| # | Tx hash | Method | Explorer result | What it tested | Expected | Match? |
+|---|---|---|---|---|---|---|
+| 1 | `0x22a18d4194b8594206b0e82daec2e2b3743534ab9c2302a7f650ed348dd64c4b` | (constructor) | SUCCESS | Deployment | SUCCESS | ✅ |
+| 2 | `0x8afbe4c79381fb649fd3bdc3c53746a7581a67662041b298df2fd93a49a593a6` | create_policy | SUCCESS | Wallet A creates its own policy (`pol_v3c_lifecycle_20260821`) | SUCCESS | ✅ |
+| 3 | `0xf5071850da4e8397c04391ebf197f3ddfc73ddbd49c641b0c0d772be90a24c16` | submit_claim | SUCCESS | Wallet A files a claim on its own policy (`clm_v3c_lifecycle_20260821`) | SUCCESS | ✅ |
+| 4 | `0xbea688bf2815d8724ad92d6aedc6e0d0b939e789efae14f27abb3de41151b85b` | append_evidence | SUCCESS | Outsider submits permissionless `PUBLIC_SOURCE` evidence | SUCCESS | ✅ |
+| 5 | `0xfb147aefc9efbb48f8ca4fb69d0a5c80b7a40a49f6d5c1274fb3af4b0a6feff2` | create_policy | ERROR | Outsider impersonates Wallet A as policy `holder` | ERROR (`holder mismatch`) | ✅ |
+| 6 | `0xc1784fd1e50d7e87cd3c63f48e4cc0de45cf56ed59a6a68aa10a34f8664f56f3` | create_policy | ERROR | Re-submitting the same `policy_id` twice | ERROR (`duplicate policy`) | ✅ |
+| 7 | `0x1351bdf2af93427f174a05ccc0f0494bbac380b05eae22e8e07b1a9a813e1d50` | create_policy | ERROR | Policy advertising the removed `MISSED_APPEAL_WINDOW` event | ERROR (`invalid covered events`) | ✅ -- proves the settlement-bug fix is enforced live |
+| 8 | `0x50a8ce097ef3f87ebe90ec02cf5c148342a5582a557d83dabd5b4408ed3a90d5` | append_evidence | ERROR | Unauthorized `CLAIMANT_ASSERTION` (1st try, used an all-digit test hash) | ERROR, but wrong reason (`invalid evidence hash`) -- see CLI numeric-string encoding below | ⚠️ my own test-data bug, not a contract issue; redone as #9 |
+| 9 | `0xe1f8d7aa53eddd275d09930699d6b0cc67361f56f14e1a5e4135cddb1bbf9345` | append_evidence | ERROR | Unauthorized `CLAIMANT_ASSERTION` (2nd try, hex-letter hash) | ERROR (`unauthorized evidence`) | ✅ |
+| 10 | `0x396fc3bac4d1b016dead69c11f0c1bf415aeefe19f56fd43ddca5b3360b6f9aa` | review_slashing_claim | ERROR | Triggering review before the claim is ready | ERROR (`underlying finality required`) | ✅ |
+| 11 | `0xdcdba86f0626966b33080a6b82e554578a7e169c2b2ff4df6e30066579f9160f` | finalize_claim | ERROR | Finalizing before any verdict exists | ERROR (`cannot finalize`) | ✅ |
+
+4 SUCCESS + 7 ERROR = 11, and every one produced the outcome it was supposed to. `get_policy`, `get_claim`, and `get_evidence` were each re-read after their respective SUCCESS row to confirm the stored terms exactly. `get_protocol_stats` after the full run: `{"policy_count": 1, "claim_count": 1, "permissionless": true}` -- only the one legitimate policy and claim exist; none of the seven rejected attempts (rows 5-11) left partial state.
 
 ### CLI numeric-string encoding (second instance of the same class of bug)
 
