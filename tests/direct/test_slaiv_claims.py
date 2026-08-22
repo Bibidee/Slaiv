@@ -3,6 +3,8 @@ import json
 VALIDATOR = "0x1111111111111111111111111111111111111111"
 EVENT_ID = "0x" + "ab" * 32
 RPC_URL = "https://studio.genlayer.com/api"
+POLICY_COMMIT = "1" * 64
+CLAIM_COMMIT = "2" * 64
 
 
 def address(account):
@@ -72,12 +74,12 @@ def mock_finality(direct_vm, tx=None):
 def create_claim(direct_vm, direct_deploy, owner, claim_id="clm_beta", policy_id="pol_alpha"):
     direct_vm.sender = owner
     contract = direct_deploy("contracts/SlaivClaims.py")
-    contract.create_policy(policy_id, policy(owner, policy_id), "p")
+    contract.create_policy(policy_id, policy(owner, policy_id), POLICY_COMMIT)
     contract.submit_claim(
         claim_id,
         policy_id,
         {"policy_id": policy_id, "claimant": address(owner), "validator": VALIDATOR, "documented_loss": 100, "incident_at_ts": 2},
-        "e0",
+        CLAIM_COMMIT,
     )
     return contract
 
