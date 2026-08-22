@@ -15,7 +15,7 @@
 - Preflight: `PREFLIGHT: PASS`
 - Explorer: https://explorer-studio.genlayer.com/address/0xc17bfE775D46080E9A58F1eC80edC2E7A04DF101
 
-This release has not been merged to `main` and the public frontend has not been switched to it. It is pending review on draft PR #5.
+The address above is historical/superseded. The corrected source in this repository requires a fresh Studionet deployment before it can be called the final submission address.
 
 ## Why the prior deployments were superseded
 

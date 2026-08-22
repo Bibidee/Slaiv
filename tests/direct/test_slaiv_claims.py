@@ -34,6 +34,7 @@ def evidence(claim_id, evidence_id, kind="CLAIMANT_ASSERTION"):
         "source": "test source",
         "reference": "https://evidence.example/" + evidence_id,
         "content_hash": "a" * 64,
+        "content": "Bounded claimant statement." if kind == "CLAIMANT_ASSERTION" else None,
         "submitted_at": 2,
     }
 
@@ -130,7 +131,7 @@ def test_full_permissionless_review_and_finalization_lifecycle(direct_vm, direct
         "slash_final": True,
         "covered_event": True,
         "exclusion_triggered": False,
-        "eligible_loss": 100,
+        "loss_fraction_bps": 10000,
         "confidence": 1,
         "supported_evidence_ids": ["evd_full", protocol_id],
         "reasoning_summary": "Consensus applies the deterministic coverage boundary.",
@@ -156,7 +157,7 @@ def test_identity_bound_appeal_remains_claimant_only(direct_vm, direct_deploy, d
         "eligibility": "DENIED", "incident_class": "MISSED_EXECUTION_WINDOW",
         "claim_id": "clm_beta", "policy_id": "pol_alpha", "validator": VALIDATOR,
         "slash_final": True, "covered_event": True, "exclusion_triggered": True,
-        "eligible_loss": 0, "confidence": 1, "supported_evidence_ids": [protocol_id],
+        "loss_fraction_bps": 0, "confidence": 1, "supported_evidence_ids": [protocol_id],
         "reasoning_summary": "Policy exclusion applies.",
     }
     direct_vm.clear_mocks(); direct_vm.mock_llm(r".*Apply policy literally.*", json.dumps(denied))
