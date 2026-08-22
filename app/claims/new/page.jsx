@@ -2,7 +2,7 @@
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PageHead, Stamp } from '../../components';
-import { newId } from '../../lib/evidence';
+import { newId, sha256 } from '../../lib/evidence';
 import { parse, read } from '../../lib/genlayer';
 import { TxStatus } from '../../tx-status';
 import { useTransaction } from '../../use-transaction';
@@ -19,7 +19,11 @@ function ClaimForm(){
       if(!policy)throw new Error('Policy docket not found.');
       const claimId=newId('clm');
       const claim={policy_id:policyId,claimant:wallet.address.toLowerCase(),validator:policy.validator,incident_at_ts:Math.floor(Date.parse(String(form.get('incident')))/1000),documented_loss:Number(form.get('loss'))};
-      await transaction.execute('submit_claim',[claimId,policyId,claim,`claim:${claimId}`]);
+      // The contract requires evidence_commitment to be a proper 64-hex
+      // sha256 digest, not an arbitrary label -- commit to the claim's own
+      // content so the hash is at least meaningfully derived.
+      const evidenceCommitment=await sha256(JSON.stringify(claim));
+      await transaction.execute('submit_claim',[claimId,policyId,claim,evidenceCommitment]);
       router.push(`/claims/${claimId}`);
     }catch(error){transaction.fail(error)}
   };
