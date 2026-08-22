@@ -1,6 +1,6 @@
 # SLAIV permissionless reviewer testing
 
-This guide describes the intended v3 flow. Until a new v3 contract is deployed and the frontend address is updated, the historical production deployment still implements the previous authority-gated design.
+This guide describes the current v3 flow, live at Studionet contract `0x283ae69159d7eE8b2c05981139cF493d8fD730D8` (see `docs/DEPLOYMENT.md` for the full deployment record and live-transaction proof).
 
 ## Core invariant
 
