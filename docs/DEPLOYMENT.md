@@ -46,11 +46,25 @@ Manual multi-wallet lifecycle test performed against `0x283ae69159d7eE8b2c059811
 | 8 | `0x1f5f709cb7bd158639b04e605a257db6359b0a48acb3a0c712505dd139486a10` | append_evidence | recallshield-studio-test (outsider) | `PUBLIC_SOURCE` evidence by a non-claimant wallet | Stored | ✅ |
 | 9–10 | `0x49b4ad1ebede1011c81e99ae231d10fff8645e9247bac2f167fc294b8732e6fd`, `0x97889ffbb722510ebde5d92e734bc3a64fcb91e465ba52aae53bdd9f0f5dedc0` | append_evidence | recallshield-studio-test | Two more `PUBLIC_SOURCE` items from the same wallet (now 3 total) | Stored | ✅ |
 | 11 | `0xdf422dfd4c67a2b07a042b62815c77ef112a746ae88f07d2628ac4db158a8d5b` | append_evidence | recallshield-studio-test | 4th `PUBLIC_SOURCE` from the same wallet, exceeding `MAX_PUBLIC_EVIDENCE_PER_WALLET=3` | Consensus-accepted call, `get_evidence_quotas` confirms `public_used` stayed at `3` -- never stored | ✅ per-wallet quota enforced |
-| 12 | `0x5343dcd9b5a742e1f26d51f0f6cf1bf706e1ffdf7e6037ee2507ff57eb73f81a` | verify_protocol_finality | faultline-dev | Candidate = this deployment's own deploy tx (real, `FINALIZED`, genuinely not a `MISSED_EXECUTION_WINDOW` incident) | Consensus-accepted call, claim state confirmed unchanged afterward: `state:AWAITING_FINALITY`, `underlying_finality:PENDING` | ✅ live RPC path reached and failed closed |
+| 12 | `0x5343dcd9b5a742e1f26d51f0f6cf1bf706e1ffdf7e6037ee2507ff57eb73f81a` | verify_protocol_finality | faultline-dev | Candidate = this deployment's own deploy tx, submitted via `genlayer write --args` | Reverted at `_event_id()` with `"invalid protocol candidate"` -- see correction note below | ⚠️ not the RPC-path proof it was first reported as; see below |
 
-Final `get_evidence_quotas("clm_release_v3_final")`: `{"claimant_used": 1, "claimant_max": 3, "public_used": 3, "public_max": 8, "public_per_wallet_max": 3, "appeal_used": 0, "appeal_max": 2, "protocol_fact_recorded": false}` -- matches every transaction above exactly.
+Final `get_evidence_quotas("clm_release_v3_final")`: `{"claimant_used": 1, "claimant_max": 3, "public_used": 3, "public_max": 8, "public_per_wallet_max": 3, "appeal_used": 0, "appeal_max": 2, "protocol_fact_recorded": false}` -- matches transactions 1-11 above exactly.
 
-No genuine Studionet `leader_timeout_validators` incident was available at test time, so the positive settlement path (`UNDER_REVIEW` -> judgment -> appeal -> finalize) was not exercised end-to-end on this live contract; per the release policy, no incident was fabricated to force it. That path is covered by Direct Mode's synthetic fixtures (63/63 passing, including the new evidence-DoS, canonicalization, consensus-equivalence, unresolved-appeal, and time-determinism tests listed above). The live RPC path itself -- resolving the official source, querying it, and deterministically classifying its response -- was proven fail-closed against a real, finalized, non-incident transaction in transaction #12.
+No genuine Studionet `leader_timeout_validators` incident was available at test time, so the positive settlement path (`UNDER_REVIEW` -> judgment -> appeal -> finalize) was not exercised end-to-end on this live contract; per the release policy, no incident was fabricated to force it. That path is covered by Direct Mode's synthetic fixtures (63/63 passing, including the new evidence-DoS, canonicalization, consensus-equivalence, unresolved-appeal, and time-determinism tests listed above).
+
+### Correction: transaction #12 did not prove the RPC path (found immediately after first reporting it)
+
+Transaction #12 above was first reported in this document as proof that `verify_protocol_finality`'s live RPC path reaches the official RPC and fails closed on a genuine non-incident transaction. That was wrong, caught on review of the raw GenVM traceback rather than the explorer's ERROR/Accepted badges. The traceback showed the revert came from the contract's very first check:
+
+```
+File "/contract.py", line 286, in verify_protocol_finality
+    if not self._event_id(event_id): raise Exception("invalid protocol candidate")
+Exception: invalid protocol candidate
+```
+
+That is `_event_id()`'s hex-format check, not `_valid_protocol_result()` -- meaning the call never reached `gl.nondet.web.post()` at all. Root cause: transaction #12 was submitted with `genlayer write --args`, whose positional-argument parser is the exact same known bug already documented in this file's "Correction record: prior verify_protocol_finality claim (superseded deployment)" section below -- it silently coerces a bare `0x`-prefixed 32-byte hex string into a `BigInt` before the contract ever sees it. `scripts/verify-protocol-finality.mjs` exists specifically to avoid this by calling `genlayer-js`'s `writeContract` directly, but transaction #12 did not use it.
+
+**As of this writing, the live RPC path has not yet been re-verified on `0x283ae69159d7eE8b2c05981139cF493d8fD730D8`.** It was previously verified on a now-superseded deployment (`0x265B238DB4d8f08Ed9f8B5609C73F88b9ffC1ECd`, see "verify_protocol_finality live RPC path: verified" below) using the correct script and the user's own signing key. The same script (`npm run verify:finality -- --claim-id clm_release_v3_final --event-id 0x7a32c9f26b7c99c0f94ccd7d7ef7c3581512d88ff8859830bab286b8a671560e`, with `SLAIV_SIGNER_PRIVATE_KEY` set to a funded Studionet key, run by the user in their own terminal) is the correct way to re-verify it against this deployment. Until that is run, the fail-closed RPC path on this specific address is proven only by Direct Mode's synthetic fixtures and the identical contract logic already verified live on the prior deployment -- not by a fresh live call.
 
 ## Why the prior deployments were superseded
 

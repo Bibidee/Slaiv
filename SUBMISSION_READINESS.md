@@ -45,7 +45,9 @@ Also closed: strict state canonicalization (explicit field allowlists on `create
 
 ## Live proof
 
-Manual multi-wallet Studionet lifecycle test against the current release address, covering legitimate policy/claim/evidence flows, outsider policy/claim impersonation rejection, duplicate policy rejection, per-wallet public-evidence quota enforcement, and a real `verify_protocol_finality` call against a genuine finalized non-incident transaction (fail-closed). Full transaction table: `docs/DEPLOYMENT.md`, "Live release proof (v3, permissionless -- current release)".
+Manual multi-wallet Studionet lifecycle test against the current release address, covering legitimate policy/claim/evidence flows, outsider policy/claim impersonation rejection, duplicate policy rejection, and per-wallet public-evidence quota enforcement -- all confirmed live and passing. Full transaction table: `docs/DEPLOYMENT.md`, "Live release proof (v3, permissionless -- current release)".
+
+A `verify_protocol_finality` call was also attempted live but did **not** prove the RPC path: it was submitted via `genlayer write --args`, a known-buggy path that corrupts hex transaction hashes, and reverted at an earlier format check instead of reaching the RPC. This was caught on review and is documented, not hidden -- see `docs/DEPLOYMENT.md`, "Correction: transaction #12 did not prove the RPC path". The RPC path itself was previously verified live (identical contract logic) on a now-superseded deployment; it has not yet been re-verified against the current address using the correct signing path.
 
 No genuine Studionet `leader_timeout_validators` incident was available at test time, so the positive settlement path (`UNDER_REVIEW` -> judgment -> appeal -> finalize) is proven only by Direct Mode's synthetic fixtures, not by a live on-chain run. This is stated plainly rather than fabricated.
 
